@@ -1,0 +1,192 @@
+{
+  "critical_fixes": {
+    "description": "These are the exact node configurations needed to fix RAG functionality in n8n workflow",
+    "priority": "IMMEDIATE - Replace existing nodes with these configurations"
+  },
+  
+  "1_generate_query_embedding": {
+    "node_name": "Generate Query Embedding",
+    "type": "n8n-nodes-base.httpRequest",
+    "position": "Insert between 'Prepare Vector Search' and 'Vector Search Documents'",
+    "configuration": {
+      "method": "POST",
+      "url": "https://api.openai.com/v1/embeddings",
+      "sendHeaders": true,
+      "headerParameters": {
+        "parameters": [
+          {
+            "name": "Authorization",
+            "value": "Bearer {{ $credentials.openAi.apiKey }}"
+          },
+          {
+            "name": "Content-Type", 
+            "value": "application/json"
+          }
+        ]
+      },
+      "sendBody": true,
+      "specifyBody": "json",
+      "jsonBody": "={{ {\n  \"model\": \"text-embedding-ada-002\",\n  \"input\": $('Prepare Chat Input').item.json.userMessage\n} }}",
+      "options": {
+        "timeout": 20000
+      }
+    },
+    "purpose": "Convert user message to embedding vector for similarity search"
+  },
+
+  "2_vector_similarity_search": {
+    "node_name": "Vector Similarity Search", 
+    "type": "n8n-nodes-base.httpRequest",
+    "replaces": "Vector Search Documents (current Supabase node)",
+    "configuration": {
+      "method": "POST",
+      "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/match_documents",
+      "sendHeaders": true,
+      "headerParameters": {
+        "parameters": [
+          {
+            "name": "apikey",
+            "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
+      "sendBody": true,
+      "specifyBody": "json", 
+      "jsonBody": "={{ {\n  \"query_embedding\": $('Generate Query Embedding').item.json.data[0].embedding,\n  \"match_threshold\": 0.7,\n  \"match_count\": 10,\n  \"user_id\": $('Prepare Chat Input').item.json.userId\n} }}",
+      "options": {
+        "timeout": 10000
+      }
+    },
+    "purpose": "Perform vector similarity search using embeddings"
+  },
+
+  "3_build_ai_context_fixed": {
+    "node_name": "Build AI Context",
+    "type": "n8n-nodes-base.code",
+    "replaces": "Existing Build AI Context node",
+    "jsCode": "// Enhanced context building with proper vector search results\nlet chatData, history = [], searchResults = [];\n\n// Safely get chat data\ntry {\n  chatData = $('Prepare Chat Input').item.json;\n} catch (e) {\n  throw new Error('Chat input data not available');\n}\n\n// Safely get chat history\ntry {\n  history = $('Get Chat History').all() || [];\n} catch (e) {\n  console.log('No chat history available');\n}\n\n// Safely get vector search results\ntry {\n  const vectorSearchNode = $('Vector Similarity Search');\n  if (vectorSearchNode && vectorSearchNode.item && vectorSearchNode.item.json) {\n    // Handle both direct results and nested data structure\n    const results = vectorSearchNode.item.json;\n    if (Array.isArray(results)) {\n      searchResults = results;\n    } else if (results.data && Array.isArray(results.data)) {\n      searchResults = results.data;\n    } else if (results.results && Array.isArray(results.results)) {\n      searchResults = results.results;\n    }\n  }\n} catch (e) {\n  console.log('No vector search results available:', e.message);\n}\n\n// Format chat history\nconst formattedHistory = history\n  .reverse()\n  .slice(0, 10) // Limit to last 10 messages\n  .map(msg => `${msg.json.role === 'user' ? 'User' : 'Assistant'}: ${msg.json.content}`)\n  .join('\\n\\n');\n\n// Format search results with similarity scores\nlet relevantDocs = 'No relevant documents found.';\nif (searchResults.length > 0) {\n  relevantDocs = searchResults.slice(0, 5)\n    .map((doc, index) => {\n      const title = doc.title || 'Untitled';\n      const category = doc.category || 'General';\n      const content = (doc.content || '').substring(0, 800);\n      const filename = doc.filename || 'Unknown file';\n      const classification = doc.classification || 'Unknown';\n      const similarity = doc.similarity ? `${(doc.similarity * 100).toFixed(1)}%` : 'N/A';\n      \n      return `**Document ${index + 1}** (Similarity: ${similarity})\\n**Title:** ${title}\\n**File:** ${filename}\\n**Category:** ${category}\\n**Classification:** ${classification}\\n**Content:** ${content}...\\n`;\n    })\n    .join('\\n---\\n');\n}\n\n// Build enhanced system message\nconst systemMessage = `You are an AI assistant for Project Horizon, specialized in analyzing how AI impacts cybersecurity tasks and roles.\n\n**Your Knowledge Base:**\n${relevantDocs}\n\n**Recent Conversation:**\n${formattedHistory || 'No previous messages.'}\n\n**Instructions:**\n- Use the knowledge base documents to answer questions\n- When referencing documents, mention their titles and similarity scores\n- Focus on AI's impact on cybersecurity work (Replace/Augment/Remain Human/New Task)\n- If asked about recent uploads, refer to the most relevant documents above\n- Be specific and cite evidence from the documents\n- If no relevant documents exist, acknowledge this and provide general guidance`;\n\nreturn {\n  json: {\n    systemMessage: systemMessage,\n    userMessage: chatData.userMessage,\n    chatId: chatData.chatId,\n    userId: chatData.userId,\n    username: chatData.username,\n    messageId: chatData.messageId,\n    documentsFound: searchResults.length,\n    historyCount: history.length,\n    searchResults: searchResults.slice(0, 3) // Include top results for debugging\n  }\n};",
+    "purpose": "Build proper AI context with vector search results and chat history"
+  },
+
+  "4_store_in_supabase_fixed": {
+    "node_name": "Store in Supabase",
+    "type": "n8n-nodes-base.supabase", 
+    "replaces": "Existing Store in Supabase node",
+    "configuration": {
+      "tableId": "documents",
+      "fieldsUi": {
+        "fieldValues": [
+          {
+            "fieldId": "artifact_id",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.artifact_id }}"
+          },
+          {
+            "fieldId": "title", 
+            "fieldValue": "={{ $('Enrich Metadata').item.json.title }}"
+          },
+          {
+            "fieldId": "summary",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.summary }}"
+          },
+          {
+            "fieldId": "content",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.content }}"
+          },
+          {
+            "fieldId": "source_url",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.source_url }}"
+          },
+          {
+            "fieldId": "source_type",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.source_type }}"
+          },
+          {
+            "fieldId": "filename",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.filename }}"
+          },
+          {
+            "fieldId": "classification",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.classification }}"
+          },
+          {
+            "fieldId": "confidence",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.confidence }}"
+          },
+          {
+            "fieldId": "rationale",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.rationale }}"
+          },
+          {
+            "fieldId": "impact_score",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.impact_score }}"
+          },
+          {
+            "fieldId": "dcwf_task_ids",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.dcwf_task_ids }}"
+          },
+          {
+            "fieldId": "work_roles",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.work_roles }}"
+          },
+          {
+            "fieldId": "user_id",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.user_id }}"
+          },
+          {
+            "fieldId": "chat_id",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.chat_id }}"
+          },
+          {
+            "fieldId": "username",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.username }}"
+          },
+          {
+            "fieldId": "category",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.category }}"
+          },
+          {
+            "fieldId": "tags",
+            "fieldValue": "={{ $('Enrich Metadata').item.json.tags }}"
+          },
+          {
+            "fieldId": "embedding",
+            "fieldValue": "={{ JSON.stringify($('Generate Embedding').item.json.data[0].embedding) }}"
+          },
+          {
+            "fieldId": "metadata",
+            "fieldValue": "={{ JSON.stringify($('Enrich Metadata').item.json.metadata) }}"
+          }
+        ]
+      }
+    },
+    "purpose": "Store document with properly formatted embedding vector"
+  },
+
+  "5_simple_vector_search_fallback": {
+    "node_name": "Simple Vector Search (Fallback)",
+    "type": "n8n-nodes-base.supabase",
+    "note": "Use this if the HTTP Request approach doesn't work",
+    "configuration": {
+      "operation": "getAll",
+      "tableId": "documents", 
+      "limit": 10,
+      "filterType": "string",
+      "filterString": "=user_id.eq.{{ $('Prepare Chat Input').item.json.userId }}"
+    },
+    "purpose": "Fallback to basic filtering if vector search fails"
+  },
+
+  "6_match_documents_function": {
+    "description": "SQL function needed in Supabase (create via SQL editor)",
+    "sql": "CREATE OR REPLACE FUNCTION match_documents(\n  query_embedding vector(1536),\n  match_threshold float DEFAULT 0.7,\n  match_count int DEFAULT 10,\n  user_id text DEFAULT NULL\n)\nRETURNS TABLE (\n  id uuid,\n  title text,\n  content text,\n  classification text,\n  filename text,\n  category text,\n  tags text[],\n  similarity float\n)\nLANGUAGE plpgsql\nAS $$\nBEGIN\n  RETURN QUERY\n  SELECT \n    d.id,\n    d.title,\n    d.content,\n    d.classification,\n    d.filename,\n    d.category,\n    d.tags,\n    1 - (d.embedding <=> query_embedding) as similarity\n  FROM documents d\n  WHERE \n    d.embedding IS NOT NULL\n    AND (user_id IS NULL OR d.user_id = user_id)\n    AND 1 - (d.embedding <=> query_embedding) > match_threshold\n  ORDER BY d.embedding <=> query_embedding\n  LIMIT match_count;\nEND;\n$$;",
+    "note": "Execute this in Supabase SQL Editor to enable vector search"
+  }
+}
