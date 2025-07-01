@@ -1,0 +1,135 @@
+# AI Horizon RAG Agent - Git Ignore
+
+# ================================
+# SENSITIVE FILES - NEVER COMMIT
+# ================================
+.env
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+credentials.json
+secrets.json
+
+# ================================
+# API KEYS AND TOKENS
+# ================================
+*api_key*
+*token*
+*secret*
+*password*
+
+# ================================
+# PYTHON
+# ================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ================================
+# VIRTUAL ENVIRONMENTS
+# ================================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ================================
+# JUPYTER NOTEBOOKS
+# ================================
+.ipynb_checkpoints
+*.ipynb
+
+# ================================
+# LOGS AND DATABASES
+# ================================
+*.log
+*.sqlite
+*.sqlite3
+*.db
+logs/
+health_check_report_*.json
+
+# ================================
+# TEMPORARY FILES
+# ================================
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ================================
+# OPERATING SYSTEM
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ================================
+# IDE AND EDITORS
+# ================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ================================
+# NODE.JS (if using n8n locally)
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+
+# ================================
+# N8N SPECIFIC
+# ================================
+.n8n/
+n8n-data/
+
+# ================================
+# BACKUP AND EXPORT FILES
+# ================================
+backup/
+exports/
+*.backup
+*.bak
+
+# ================================
+# SAMPLE DATA (if contains real data)
+# ================================
+# Uncomment if sample documents contain sensitive info
+# data/sample_documents/*.pdf
+# data/sample_documents/*.docx
