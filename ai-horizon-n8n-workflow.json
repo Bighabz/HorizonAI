@@ -1,0 +1,1033 @@
+{
+  "name": "AI Horizon Forecasting Pipeline - Production Ready",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "document",
+          "photo"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "telegram-webhook-horizon"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "horizon-webhook",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [200, 500],
+      "webhookId": "horizon-webhook"
+    },
+    {
+      "parameters": {
+        "mode": "passThrough",
+        "output": "input2"
+      },
+      "id": "merge-triggers",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "msg-condition",
+              "leftValue": "={{ $json.message?.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "check-message-type",
+      "name": "Check Message Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user-id",
+              "name": "user_id",
+              "value": "={{ $json.message?.from?.id || $json.body?.user_id || 'anonymous' }}",
+              "type": "string"
+            },
+            {
+              "id": "content",
+              "name": "content",
+              "value": "={{ $json.message?.text || $json.body?.content || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "file-id",
+              "name": "file_id",
+              "value": "={{ $json.message?.document?.file_id || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect content type and source\nconst content = $input.item.json.content;\nconst fileId = $input.item.json.file_id;\n\nlet contentType = 'query';\nlet sourceType = 'text';\n\nif (fileId) {\n  contentType = 'document';\n  sourceType = 'telegram_file';\n} else if (content) {\n  const urlLower = content.toLowerCase();\n  \n  if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {\n    contentType = 'url';\n    sourceType = 'youtube';\n  } else if (urlLower.includes('tiktok.com')) {\n    contentType = 'url';\n    sourceType = 'tiktok';\n  } else if (urlLower.startsWith('http')) {\n    contentType = 'url';\n    sourceType = 'web';\n  } else {\n    // Check if it's a query\n    const queryKeywords = ['what', 'show', 'list', 'find', 'search', 'tell me', 'summary', 'last', 'recent'];\n    const isQuery = queryKeywords.some(keyword => urlLower.includes(keyword));\n    \n    if (isQuery) {\n      contentType = 'query';\n      sourceType = 'chat';\n    }\n  }\n}\n\nreturn {\n  ...($input.item.json),\n  content_type: contentType,\n  source_type: sourceType\n};"
+      },
+      "id": "detect-content-type",
+      "name": "Detect Content Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source_type }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source_type }}",
+                    "rightValue": "tiktok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tiktok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source_type }}",
+                    "rightValue": "web",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.source_type }}",
+                    "rightValue": "telegram_file",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source_type }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "chat"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "route-by-type",
+      "name": "Route by Content Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/get-youtube-transcript",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"videoUrl\": \"{{ $json.content }}\",\n  \"includeTimestamps\": true,\n  \"timestampsToCombine\": 5,\n  \"preferredLanguage\": \"en\"\n}",
+        "options": {}
+      },
+      "id": "dumpling-youtube",
+      "name": "Dumpling YouTube Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/get-tiktok-transcript",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"videoUrl\": \"{{ $json.content }}\",\n  \"preferredLanguage\": \"en\"\n}",
+        "options": {}
+      },
+      "id": "dumpling-tiktok",
+      "name": "Dumpling TikTok Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/doc-to-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"inputMethod\": \"url\",\n  \"file\": \"{{ $json.content }}\"\n}",
+        "options": {}
+      },
+      "id": "dumpling-document",
+      "name": "Dumpling Document Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "extracted_text",
+              "name": "extracted_text",
+              "value": "={{ $json.transcript || $json.text || $json.content || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "original_data",
+              "name": "original_data",
+              "value": "={{ $('detect-content-type').item.json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "merge-extracted",
+      "name": "Merge Extracted Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an AI Horizon Forecasting expert analyzing how AI impacts cybersecurity work. Classify content based on the AI Horizon Forecasting Pipeline framework.\n\nClassifications:\n- Replace: AI will fully automate this task without human involvement\n- Augment: AI will support/accelerate but not fully automate the task\n- Remain Human: Task will remain primarily human due to complexity, judgment, ethics\n- New Task: Emerging job duty created by AI advances\n\nScoring (0-1 scale):\n- Credibility: Source reliability and authority\n- Impact: Magnitude of potential change to the workforce\n- Specificity: Level of detail and actionability\n- Confidence: Your certainty in the classification\n\nDCWF Task Mapping:\nIdentify specific DCWF task IDs mentioned or implied. Common examples:\n- TVM-001: Vulnerability Scanning\n- ANL-004: Threat Analysis  \n- INC-001: Incident Response\n- SOC-002: Security Monitoring\n- PEN-003: Penetration Testing\n\nReturn JSON:\n{\n  \"classification\": \"Replace|Augment|Remain Human|New Task\",\n  \"confidence\": 0.0-1.0,\n  \"rationale\": \"Clear explanation referencing specific evidence\",\n  \"scores\": {\n    \"credibility\": 0.0-1.0,\n    \"impact\": 0.0-1.0,\n    \"specificity\": 0.0-1.0\n  },\n  \"dcwf_tasks\": [\"task_ids\"],\n  \"summary\": \"2-3 sentence summary of key findings\",\n  \"title\": \"Brief descriptive title\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "Analyze this content for AI's impact on cybersecurity work:\n\n{{ $json.extracted_text }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "responseFormat": {
+            "values": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "id": "classify-content",
+      "name": "AI Classify Content",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [1800, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/horizon_artifacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.original_data.user_id }}\",\n  \"title\": \"{{ $json.title || 'AI Impact Analysis' }}\",\n  \"source_type\": \"{{ $json.original_data.source_type }}\",\n  \"source_url\": \"{{ $json.original_data.content }}\",\n  \"content\": \"{{ $('merge-extracted').item.json.extracted_text.substring(0, 5000) }}\",\n  \"classification\": \"{{ $json.classification }}\",\n  \"confidence\": {{ $json.confidence }},\n  \"rationale\": \"{{ $json.rationale }}\",\n  \"summary\": \"{{ $json.summary }}\",\n  \"dcwf_tasks\": {{ JSON.stringify($json.dcwf_tasks || []) }},\n  \"scores\": {{ JSON.stringify($json.scores) }},\n  \"retrieved_on\": \"{{ $now.format('yyyy-MM-dd') }}\"\n}",
+        "options": {}
+      },
+      "id": "store-in-supabase",
+      "name": "Store in Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/chat_memory",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $('detect-content-type').item.json.user_id }}\",\n  \"role\": \"user\",\n  \"content\": \"{{ $('detect-content-type').item.json.content }}\",\n  \"timestamp\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "id": "store-user-message",
+      "name": "Store User Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/chat_memory",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "=eq.{{ $json.user_id }}"
+            },
+            {
+              "name": "order",
+              "value": "timestamp.desc"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-chat-history",
+      "name": "Get Chat History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 600]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/horizon_artifacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "=eq.{{ $('detect-content-type').item.json.user_id }}"
+            },
+            {
+              "name": "order",
+              "value": "created_at.desc"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-recent-docs",
+      "name": "Get Recent Documents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 700]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are the AI Horizon assistant helping users understand AI's impact on cybersecurity work. You have access to their document history and classifications.\n\nKey concepts:\n- Replace: AI fully automates the task\n- Augment: AI assists but doesn't replace humans\n- Remain Human: Task stays primarily human\n- New Task: Emerging role due to AI\n\nBe concise and reference specific evidence. Help users understand trends and implications for their cybersecurity career or education planning."
+            },
+            {
+              "role": "user",
+              "content": "=User Query: {{ $('detect-content-type').item.json.content }}\n\nChat History (last 10 messages):\n{{ $('get-chat-history').item.json.map(msg => `${msg.role}: ${msg.content}`).join('\\n') }}\n\nRecent Documents Analyzed:\n{{ $('get-recent-docs').item.json.map(doc => `- ${doc.title}: ${doc.classification} (${Math.round(doc.confidence * 100)}% confidence) - ${doc.summary}`).join('\\n') }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "chat-response",
+      "name": "Generate Chat Response",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [1600, 650],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "response",
+              "name": "response_message",
+              "value": "=📊 **AI Horizon Analysis Complete!**\n\n🏷️ **Classification:** {{ $('classify-content').item.json.classification }}\n💯 **Confidence:** {{ Math.round($('classify-content').item.json.confidence * 100) }}%\n\n📝 **Summary:**\n{{ $('classify-content').item.json.summary }}\n\n📈 **Impact Assessment:**\n• Credibility: {{ Math.round($('classify-content').item.json.scores.credibility * 100) }}%\n• Workforce Impact: {{ Math.round($('classify-content').item.json.scores.impact * 100) }}%\n• Specificity: {{ Math.round($('classify-content').item.json.scores.specificity * 100) }}%\n\n🎯 **DCWF Tasks Affected:** {{ $('classify-content').item.json.dcwf_tasks.length > 0 ? $('classify-content').item.json.dcwf_tasks.join(', ') : 'General cybersecurity impact' }}\n\n💡 **Analysis:**\n{{ $('classify-content').item.json.rationale }}\n\n📂 Document saved for future reference. Ask me anything about AI's impact on cybersecurity roles!",
+              "type": "string"
+            },
+            {
+              "id": "stored_id",
+              "name": "artifact_id",
+              "value": "={{ $('store-in-supabase').item.json[0].id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-doc-response",
+      "name": "Format Document Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2200, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "response",
+              "name": "response_message",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-chat-response",
+      "name": "Format Chat Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1800, 650]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/chat_memory",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $('detect-content-type').item.json.user_id }}\",\n  \"role\": \"assistant\",\n  \"content\": \"{{ $json.response_message }}\",\n  \"artifact_id\": \"{{ $json.artifact_id || null }}\",\n  \"timestamp\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "id": "store-assistant-response",
+      "name": "Store Assistant Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 450]
+    },
+    {
+      "parameters": {
+        "mode": "passThrough",
+        "output": "input2"
+      },
+      "id": "merge-responses",
+      "name": "Merge All Responses",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2200, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "telegram-check",
+              "leftValue": "={{ $('prepare-data').item.json.user_id }}",
+              "rightValue": "anonymous",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-telegram",
+      "name": "Is Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2600, 450]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('prepare-data').item.json.user_id }}",
+        "text": "={{ $json.response_message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-response",
+      "name": "Send Telegram Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2800, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "2",
+          "name": "Telegram Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "horizon-response",
+        "responseMode": "responseNode",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "responseData": "allEntries",
+          "responsePropertyName": "={{ JSON.stringify({ success: true, message: $json.response_message, artifact_id: $json.artifact_id }) }}"
+        }
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2800, 500]
+    }
+  ],
+  "connections": {
+    "telegram-trigger": {
+      "main": [
+        [
+          {
+            "node": "merge-triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "merge-triggers",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "merge-triggers": {
+      "main": [
+        [
+          {
+            "node": "check-message-type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check-message-type": {
+      "main": [
+        [
+          {
+            "node": "prepare-data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "prepare-data": {
+      "main": [
+        [
+          {
+            "node": "detect-content-type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "detect-content-type": {
+      "main": [
+        [
+          {
+            "node": "route-by-type",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "store-user-message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "route-by-type": {
+      "main": [
+        [
+          {
+            "node": "dumpling-youtube",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "dumpling-tiktok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "dumpling-document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "get-chat-history",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "get-recent-docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dumpling-youtube": {
+      "main": [
+        [
+          {
+            "node": "merge-extracted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dumpling-tiktok": {
+      "main": [
+        [
+          {
+            "node": "merge-extracted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "dumpling-document": {
+      "main": [
+        [
+          {
+            "node": "merge-extracted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "merge-extracted": {
+      "main": [
+        [
+          {
+            "node": "classify-content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "classify-content": {
+      "main": [
+        [
+          {
+            "node": "store-in-supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "store-in-supabase": {
+      "main": [
+        [
+          {
+            "node": "format-doc-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-chat-history": {
+      "main": [
+        [
+          {
+            "node": "chat-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-recent-docs": {
+      "main": [
+        [
+          {
+            "node": "chat-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "chat-response": {
+      "main": [
+        [
+          {
+            "node": "format-chat-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format-doc-response": {
+      "main": [
+        [
+          {
+            "node": "merge-responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format-chat-response": {
+      "main": [
+        [
+          {
+            "node": "merge-responses",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "merge-responses": {
+      "main": [
+        [
+          {
+            "node": "store-assistant-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "store-assistant-response": {
+      "main": [
+        [
+          {
+            "node": "is-telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is-telegram": {
+      "main": [
+        [
+          {
+            "node": "telegram-response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "webhook-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ai-horizon-forecasting-production"
+  },
+  "tags": [
+    {
+      "name": "AI Horizon",
+      "createdAt": "2025-06-21",
+      "updatedAt": "2025-06-21"
+    }
+  ]
+}
