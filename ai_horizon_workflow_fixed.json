@@ -281,7 +281,7 @@
             {
               "id": "title",
               "fieldName": "title",
-              "fieldValue": "={{ $('AI Classify').item.json.title || 'Untitled' }}"
+              "fieldValue": "={{ $items()[0].json.title || 'Untitled' }}"
             },
             {
               "id": "content",
@@ -291,22 +291,22 @@
             {
               "id": "classification",
               "fieldName": "classification",
-              "fieldValue": "={{ $('AI Classify').item.json.classification }}"
+              "fieldValue": "={{ $items()[0].json.classification }}"
             },
             {
               "id": "confidence",
               "fieldName": "confidence",
-              "fieldValue": "={{ $('AI Classify').item.json.confidence }}"
+              "fieldValue": "={{ $items()[0].json.confidence }}"
             },
             {
               "id": "summary",
               "fieldName": "summary",
-              "fieldValue": "={{ $('AI Classify').item.json.summary }}"
+              "fieldValue": "={{ $items()[0].json.summary }}"
             },
             {
               "id": "embedding",
               "fieldName": "embedding",
-              "fieldValue": "={{ '[' + $('Generate Embedding').item.json.data[0].embedding.join(',') + ']' }}"
+              "fieldValue": "={{ '[' + $items()[1].json.data[0].embedding.join(',') + ']' }}"
             },
             {
               "id": "user_id",
@@ -357,7 +357,7 @@
       "parameters": {
         "resource": "message",
         "chatId": "={{ $('Route Detection').item.json.chatId }}",
-        "text": "✅ Document processed!\n🏷️ {{ $('AI Classify').item.json.classification }}\n📝 {{ $('AI Classify').item.json.summary }}",
+        "text": "✅ Document processed!\n🏷️ {{ $items()[0].json.classification }}\n📝 {{ $items()[0].json.summary }}",
         "additionalFields": {}
       },
       "id": "10",
@@ -646,6 +646,14 @@
           "name": "Telegram Bot API"
         }
       }
+    },
+    {
+      "parameters": {},
+      "id": "19",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [1500, 125]
     }
   ],
   "connections": {
@@ -678,9 +686,12 @@
       ]]
     },
     "AI Classify": {
-      "main": [[{"node": "Store Document", "type": "main", "index": 0}]]
+      "main": [[{"node": "Merge", "type": "main", "index": 0}]]
     },
     "Generate Embedding": {
+      "main": [[{"node": "Merge", "type": "main", "index": 1}]]
+    },
+    "Merge": {
       "main": [[{"node": "Store Document", "type": "main", "index": 0}]]
     },
     "Store Document": {
