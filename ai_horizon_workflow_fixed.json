@@ -232,10 +232,57 @@
     },
     {
       "parameters": {
-        "operation": "insert",
-        "table": "documents",
-        "columns": "title,content,classification,embedding,user_id,chat_id",
-        "additionalFields": {}
+        "operation": "create",
+        "tableId": "documents",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "title",
+              "fieldValue": "={{ $('AI Classify').item.json.title || 'Untitled' }}"
+            },
+            {
+              "fieldName": "content",
+              "fieldValue": "={{ $('Process Document').item.json.text || $('Process YouTube').item.json.transcript }}"
+            },
+            {
+              "fieldName": "classification",
+              "fieldValue": "={{ $('AI Classify').item.json.classification }}"
+            },
+            {
+              "fieldName": "confidence",
+              "fieldValue": "={{ $('AI Classify').item.json.confidence }}"
+            },
+            {
+              "fieldName": "summary",
+              "fieldValue": "={{ $('AI Classify').item.json.summary }}"
+            },
+            {
+              "fieldName": "embedding",
+              "fieldValue": "={{ '[' + $('Generate Embedding').item.json.data[0].embedding.join(',') + ']' }}"
+            },
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $('Route Detection').item.json.userId }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $('Route Detection').item.json.chatId }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $('Route Detection').item.json.username }}"
+            },
+            {
+              "fieldName": "source_type",
+              "fieldValue": "={{ $('Route Detection').item.json.routeType }}"
+            },
+            {
+              "fieldName": "filename",
+              "fieldValue": "={{ $('Route Detection').item.json.fileName || 'unknown' }}"
+            }
+          ]
+        }
       },
       "id": "9",
       "name": "Store Document",
@@ -383,10 +430,33 @@
     },
     {
       "parameters": {
-        "operation": "insert",
-        "table": "chat_memory",
-        "columns": "user_id,chat_id,role,content",
-        "additionalFields": {}
+        "operation": "create",
+        "tableId": "chat_memory",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $('Build Context').item.json.userId }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $('Build Context').item.json.chatId }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $('Route Detection').item.json.username }}"
+            },
+            {
+              "fieldName": "role",
+              "fieldValue": "user"
+            },
+            {
+              "fieldName": "content",
+              "fieldValue": "={{ $('Build Context').item.json.userMessage }}"
+            }
+          ]
+        }
       },
       "id": "16",
       "name": "Save User Message",
@@ -402,10 +472,33 @@
     },
     {
       "parameters": {
-        "operation": "insert",
-        "table": "chat_memory",
-        "columns": "user_id,chat_id,role,content",
-        "additionalFields": {}
+        "operation": "create",
+        "tableId": "chat_memory",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $('Build Context').item.json.userId }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $('Build Context').item.json.chatId }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $('Route Detection').item.json.username }}"
+            },
+            {
+              "fieldName": "role",
+              "fieldValue": "assistant"
+            },
+            {
+              "fieldName": "content",
+              "fieldValue": "={{ $('Generate Response').item.json.choices[0].message.content }}"
+            }
+          ]
+        }
       },
       "id": "17",
       "name": "Save AI Response",
