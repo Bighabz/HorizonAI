@@ -1,1 +1,29 @@
-THIS SHOULD BE A LINTER ERROR
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Credentials (SECURITY)
+n8n_credentials_setup.md
+*credentials*.md
+*credentials*.txt
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

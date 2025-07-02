@@ -238,48 +238,64 @@
         "fieldsUi": {
           "fieldValues": [
             {
+              "id": "title",
               "fieldName": "title",
               "fieldValue": "={{ $('AI Classify').item.json.title || 'Untitled' }}"
             },
             {
+              "id": "content",
               "fieldName": "content",
               "fieldValue": "={{ $('Process Document').item.json.text || $('Process YouTube').item.json.transcript }}"
             },
             {
+              "id": "classification",
               "fieldName": "classification",
               "fieldValue": "={{ $('AI Classify').item.json.classification }}"
             },
             {
+              "id": "confidence",
               "fieldName": "confidence",
               "fieldValue": "={{ $('AI Classify').item.json.confidence }}"
             },
             {
+              "id": "summary",
               "fieldName": "summary",
               "fieldValue": "={{ $('AI Classify').item.json.summary }}"
             },
             {
+              "id": "embedding",
               "fieldName": "embedding",
               "fieldValue": "={{ '[' + $('Generate Embedding').item.json.data[0].embedding.join(',') + ']' }}"
             },
             {
+              "id": "user_id",
               "fieldName": "user_id",
               "fieldValue": "={{ $('Route Detection').item.json.userId }}"
             },
             {
+              "id": "chat_id",
               "fieldName": "chat_id",
               "fieldValue": "={{ $('Route Detection').item.json.chatId }}"
             },
             {
+              "id": "username",
               "fieldName": "username",
               "fieldValue": "={{ $('Route Detection').item.json.username }}"
             },
             {
+              "id": "source_type",
               "fieldName": "source_type",
               "fieldValue": "={{ $('Route Detection').item.json.routeType }}"
             },
             {
+              "id": "filename",
               "fieldName": "filename",
               "fieldValue": "={{ $('Route Detection').item.json.fileName || 'unknown' }}"
+            },
+            {
+              "id": "artifact_id",
+              "fieldName": "artifact_id",
+              "fieldValue": "={{ $now.format('YYYYMMDD_HHmmss') + '_' + $('Route Detection').item.json.userId }}"
             }
           ]
         }
@@ -476,24 +492,34 @@
         "fieldsUi": {
           "fieldValues": [
             {
+              "id": "user_id",
               "fieldName": "user_id",
               "fieldValue": "={{ $('Build Context').item.json.userId }}"
             },
             {
+              "id": "chat_id",
               "fieldName": "chat_id",
               "fieldValue": "={{ $('Build Context').item.json.chatId }}"
             },
             {
+              "id": "username",
               "fieldName": "username",
               "fieldValue": "={{ $('Route Detection').item.json.username }}"
             },
             {
+              "id": "role",
               "fieldName": "role",
               "fieldValue": "user"
             },
             {
+              "id": "content",
               "fieldName": "content",
               "fieldValue": "={{ $('Build Context').item.json.userMessage }}"
+            },
+            {
+              "id": "message_id",
+              "fieldName": "message_id",
+              "fieldValue": "={{ $('Route Detection').item.json.messageId }}"
             }
           ]
         }
@@ -518,22 +544,27 @@
         "fieldsUi": {
           "fieldValues": [
             {
+              "id": "user_id",
               "fieldName": "user_id",
               "fieldValue": "={{ $('Build Context').item.json.userId }}"
             },
             {
+              "id": "chat_id",
               "fieldName": "chat_id",
               "fieldValue": "={{ $('Build Context').item.json.chatId }}"
             },
             {
+              "id": "username",
               "fieldName": "username",
               "fieldValue": "={{ $('Route Detection').item.json.username }}"
             },
             {
+              "id": "role",
               "fieldName": "role",
               "fieldValue": "assistant"
             },
             {
+              "id": "content",
               "fieldName": "content",
               "fieldValue": "={{ $('Generate Response').item.json.choices[0].message.content }}"
             }
