@@ -17,6 +17,7 @@ This project builds an AI-powered Retrieval-Augmented Generation (RAG) agent tha
 ├── DCWFMASTER.xlsx                    # Complete DCWF framework data (1,350+ tasks, 1,772+ KSAs)
 ├── AIHORIZON.txt                      # AI Horizon forecasting pipeline requirements  
 ├── AI_HORIZON_WORKFLOW_FIX_PROMPT.md  # Technical prompt for workflow development
+├── ai_horizon_debug_workflow.json     # Working debug workflow for testing
 ├── database_schema.sql                # Essential Supabase schema with pgvector
 ├── README.md                          # This file
 ├── requirements.txt                   # Python dependencies
