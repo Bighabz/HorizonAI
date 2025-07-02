@@ -1,0 +1,470 @@
+{
+  "name": "AI Horizon RAG Agent - Fixed Version",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "telegram-bot-horizon",
+        "options": {}
+      },
+      "id": "webhook-telegram",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "webhookId": "telegram-horizon-bot"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Telegram webhook data\nconst body = $input.all()[0].json.body;\n\nif (!body || !body.message) {\n  return { json: { error: 'No message in webhook' } };\n}\n\nconst message = body.message;\nconst userId = message.from.id.toString();\nconst chatId = message.chat.id.toString();\nconst username = message.from.username || message.from.first_name || 'Unknown';\nconst messageText = message.text || '';\n\n// Handle document uploads\nlet documentInfo = null;\nif (message.document) {\n  documentInfo = {\n    fileId: message.document.file_id,\n    fileName: message.document.file_name,\n    mimeType: message.document.mime_type,\n    fileSize: message.document.file_size\n  };\n}\n\nreturn {\n  json: {\n    userId,\n    chatId,\n    username,\n    messageText,\n    documentInfo,\n    timestamp: new Date().toISOString(),\n    messageId: message.message_id\n  }\n};"
+      },
+      "id": "parse-telegram-input",
+      "name": "Parse Telegram Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "document-upload",
+              "leftValue": "={{ $json.documentInfo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-document-upload",
+      "name": "Check Document Upload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.openAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-ada-002"
+            },
+            {
+              "name": "input",
+              "value": "={{ $json.messageText }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-query-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 500],
+      "credentials": {
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract embedding from OpenAI response\nconst openaiResponse = $input.all()[0].json;\nconst telegramData = $('Parse Telegram Input').first().json;\n\nif (!openaiResponse.data || !openaiResponse.data[0] || !openaiResponse.data[0].embedding) {\n  throw new Error('Failed to generate embedding');\n}\n\nconst embedding = openaiResponse.data[0].embedding;\n\nreturn {\n  json: {\n    ...telegramData,\n    queryEmbedding: embedding,\n    embeddingDimensions: embedding.length\n  }\n};"
+      },
+      "id": "prepare-vector-search",
+      "name": "Prepare Vector Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 500]
+    },
+    {
+      "parameters": {
+        "resource": "rpc",
+        "operation": "call",
+        "function": "match_documents",
+        "parameters": {
+          "query_embedding": "={{ $json.queryEmbedding }}",
+          "match_threshold": 0.7,
+          "match_count": 5,
+          "user_id": "={{ $json.userId }}"
+        }
+      },
+      "id": "vector-search-documents",
+      "name": "Vector Search Documents",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1000, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "table": "chat_memory",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "keyValue": "={{ $('Parse Telegram Input').first().json.userId }}",
+              "condition": "equals"
+            }
+          ]
+        },
+        "sort": {
+          "fields": [
+            {
+              "field": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "limit": 10
+      },
+      "id": "get-chat-history",
+      "name": "Get Chat History",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1000, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build context for AI response\nconst telegramData = $('Parse Telegram Input').first().json;\nconst searchResults = $('Vector Search Documents').all();\nconst chatHistory = $('Get Chat History').all();\n\n// Process search results\nlet relevantDocuments = [];\nif (searchResults && searchResults.length > 0) {\n  relevantDocuments = searchResults\n    .filter(doc => doc.json && doc.json.similarity > 0.7)\n    .slice(0, 3)\n    .map(doc => ({\n      title: doc.json.title,\n      content: doc.json.content?.substring(0, 1000) + '...',\n      classification: doc.json.classification,\n      filename: doc.json.filename,\n      similarity: doc.json.similarity\n    }));\n}\n\n// Process chat history\nlet recentMessages = [];\nif (chatHistory && chatHistory.length > 0) {\n  recentMessages = chatHistory\n    .slice(0, 5)\n    .reverse()\n    .map(msg => `${msg.json.role}: ${msg.json.content}`);\n}\n\n// Build system prompt\nconst systemPrompt = `You are an AI Horizon assistant specializing in cybersecurity workforce analysis. You help analyze how artificial intelligence impacts cybersecurity tasks and roles.\n\nYour expertise includes:\n- Classifying AI impact as: Replace, Augment, Remain Human, or New Task\n- Mapping findings to DCWF (Department of Homeland Security Cybersecurity Workforce Framework)\n- Providing insights on workforce transformation\n- Analyzing documents, videos, and research\n\nWhen relevant documents are found, reference them in your response with their similarity scores.`;\n\n// Build context\nlet contextString = systemPrompt;\n\nif (relevantDocuments.length > 0) {\n  contextString += `\\n\\nRelevant Documents Found:\\n`;\n  relevantDocuments.forEach((doc, index) => {\n    contextString += `\\n${index + 1}. \"${doc.title}\" (${doc.filename})\\n`;\n    contextString += `   Classification: ${doc.classification}\\n`;\n    contextString += `   Similarity: ${(doc.similarity * 100).toFixed(1)}%\\n`;\n    contextString += `   Content: ${doc.content}\\n`;\n  });\n}\n\nif (recentMessages.length > 0) {\n  contextString += `\\n\\nRecent Conversation:\\n${recentMessages.join('\\n')}`;\n}\n\ncontextString += `\\n\\nUser Question: ${telegramData.messageText}`;\n\nreturn {\n  json: {\n    ...telegramData,\n    contextString,\n    relevantDocuments,\n    recentMessages,\n    hasRelevantDocs: relevantDocuments.length > 0\n  }\n};"
+      },
+      "id": "build-context",
+      "name": "Build Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 500]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "={{ $json.contextString }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.messageText }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "generate-ai-response",
+      "name": "Generate AI Response",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.3,
+      "position": [1400, 500],
+      "credentials": {
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "table": "chat_memory",
+        "dataMode": "defineInNode",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.userId }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.chatId }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.username }}"
+            },
+            {
+              "fieldName": "role",
+              "fieldValue": "user"
+            },
+            {
+              "fieldName": "content",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.messageText }}"
+            }
+          ]
+        }
+      },
+      "id": "save-user-message",
+      "name": "Save User Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "table": "chat_memory",
+        "dataMode": "defineInNode",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "user_id",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.userId }}"
+            },
+            {
+              "fieldName": "chat_id",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.chatId }}"
+            },
+            {
+              "fieldName": "username",
+              "fieldValue": "={{ $('Parse Telegram Input').first().json.username }}"
+            },
+            {
+              "fieldName": "role",
+              "fieldValue": "assistant"
+            },
+            {
+              "fieldName": "content",
+              "fieldValue": "={{ $json.message.content }}"
+            }
+          ]
+        }
+      },
+      "id": "save-assistant-response",
+      "name": "Save Assistant Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $credentials.telegramApi.accessToken }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Parse Telegram Input').first().json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Generate AI Response').first().json.message.content }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      },
+      "id": "send-telegram-response",
+      "name": "Send Telegram Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Telegram Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Telegram Input": {
+      "main": [
+        [
+          {
+            "node": "Check Document Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Document Upload": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {
+            "node": "Prepare Vector Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Vector Search": {
+      "main": [
+        [
+          {
+            "node": "Vector Search Documents",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Search Documents": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chat History": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Response": {
+      "main": [
+        [
+          {
+            "node": "Save User Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Assistant Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-12-19T00:00:00.000Z",
+  "versionId": "fixed-rag-version-1.0"
+}

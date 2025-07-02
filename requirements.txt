@@ -1,0 +1,24 @@
+# AI Horizon RAG Agent - Python Dependencies
+
+# Core Dependencies
+requests>=2.31.0
+python-dotenv>=1.0.0
+pandas>=2.0.3
+psycopg2-binary>=2.9.7
+
+# Data Processing
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Testing
+pytest>=7.4.0
+
+# Utilities
+rich>=13.0.0
+tqdm>=4.65.0
+
+# HTTP/API
+httpx>=0.24.0
+
+# Logging
+loguru>=0.7.0
