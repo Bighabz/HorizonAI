@@ -1,0 +1,510 @@
+{
+  "name": "AI Horizon RAG Agent - Fixed",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "document"
+        ]
+      },
+      "id": "1",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "telegram-bot-horizon",
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const update = $json;\nlet routeType = 'unknown';\nlet data = {};\n\nif (update.message) {\n  if (update.message.document) {\n    const doc = update.message.document;\n    routeType = 'document';\n    data = {\n      routeType: 'document',\n      fileId: doc.file_id,\n      fileName: doc.file_name || 'unknown',\n      chatId: update.message.chat.id,\n      userId: update.message.from.id,\n      username: update.message.from.username || update.message.from.first_name,\n      messageId: update.message.message_id\n    };\n  } else if (update.message.text) {\n    const text = update.message.text;\n    const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n    const urls = text.match(urlRegex);\n    \n    if (urls && urls.length > 0 && urls[0].includes('youtube.com')) {\n      routeType = 'youtube';\n      data = {\n        routeType: 'youtube',\n        url: urls[0],\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id\n      };\n    } else {\n      routeType = 'chat';\n      data = {\n        routeType: 'chat',\n        message: text,\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id\n      };\n    }\n  }\n}\n\nreturn { json: data };"
+      },
+      "id": "2",
+      "name": "Route Detection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "chat"
+            }
+          ]
+        }
+      },
+      "id": "3",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}"
+      },
+      "id": "4",
+      "name": "Download File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [800, 100],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/doc-to-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ $binary.data }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5",
+      "name": "Process Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Dumpling AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/get-youtube-transcript",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "videoUrl",
+              "value": "={{ $json.url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6",
+      "name": "Process YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Dumpling AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an AI Horizon expert. Classify content as:\n- Replace: AI fully automates\n- Augment: AI assists humans\n- Remain Human: Stays human-driven\n- New Task: AI creates new roles\n\nReturn JSON with classification, confidence (0-1), summary, and DCWF task IDs."
+            },
+            {
+              "role": "user", 
+              "content": "Analyze: {{ $json.text || $json.transcript }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "7",
+      "name": "AI Classify",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1200, 150],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-ada-002"
+            },
+            {
+              "name": "input",
+              "value": "={{ $('Process Document').item.json.text || $('Process YouTube').item.json.transcript }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8",
+      "name": "Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 150],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "documents",
+        "columns": "title,content,classification,embedding,user_id,chat_id",
+        "additionalFields": {}
+      },
+      "id": "9",
+      "name": "Store Document",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, 150],
+      "credentials": {
+        "supabaseApi": {
+          "id": "4",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Route Detection').item.json.chatId }}",
+        "text": "✅ Document processed!\n🏷️ {{ $('AI Classify').item.json.classification }}\n📝 {{ $('AI Classify').item.json.summary }}",
+        "additionalFields": {}
+      },
+      "id": "10",
+      "name": "Send Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1800, 150],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-ada-002"
+            },
+            {
+              "name": "input",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "11",
+      "name": "Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM match_documents($1, $2, 0.3, 5)",
+        "options": {}
+      },
+      "id": "12",
+      "name": "Vector Search",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1000, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "4",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "table": "chat_memory",
+        "returnAll": false,
+        "limit": 5,
+        "filters": {}
+      },
+      "id": "13",
+      "name": "Get History",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1000, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "4",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const userMessage = $('Switch').item.json.message;\nconst docs = $('Vector Search').all() || [];\nconst history = $('Get History').all() || [];\n\nconst context = docs.slice(0, 3).map(d => d.json.content).join('\\n\\n');\n\nreturn {\n  json: {\n    systemPrompt: `You are an AI Horizon assistant. Use this context:\\n${context}`,\n    userMessage: userMessage,\n    chatId: $('Switch').item.json.chatId,\n    userId: $('Switch').item.json.userId\n  }\n};"
+      },
+      "id": "14",
+      "name": "Build Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 450]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.systemPrompt }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.userMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "15",
+      "name": "Generate Response",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1400, 450],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "chat_memory",
+        "columns": "user_id,chat_id,role,content",
+        "additionalFields": {}
+      },
+      "id": "16",
+      "name": "Save User Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "4",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "chat_memory",
+        "columns": "user_id,chat_id,role,content",
+        "additionalFields": {}
+      },
+      "id": "17",
+      "name": "Save AI Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "4",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Build Context').item.json.chatId }}",
+        "text": "={{ $json.choices[0].message.content }}",
+        "additionalFields": {}
+      },
+      "id": "18",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1800, 450],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{"node": "Route Detection", "type": "main", "index": 0}]]
+    },
+    "Route Detection": {
+      "main": [[{"node": "Switch", "type": "main", "index": 0}]]
+    },
+    "Switch": {
+      "main": [
+        [{"node": "Download File", "type": "main", "index": 0}],
+        [{"node": "Process YouTube", "type": "main", "index": 0}],
+        [{"node": "Embed Query", "type": "main", "index": 0}]
+      ]
+    },
+    "Download File": {
+      "main": [[{"node": "Process Document", "type": "main", "index": 0}]]
+    },
+    "Process Document": {
+      "main": [[
+        {"node": "AI Classify", "type": "main", "index": 0},
+        {"node": "Generate Embedding", "type": "main", "index": 0}
+      ]]
+    },
+    "Process YouTube": {
+      "main": [[
+        {"node": "AI Classify", "type": "main", "index": 0},
+        {"node": "Generate Embedding", "type": "main", "index": 0}
+      ]]
+    },
+    "AI Classify": {
+      "main": [[{"node": "Store Document", "type": "main", "index": 0}]]
+    },
+    "Generate Embedding": {
+      "main": [[{"node": "Store Document", "type": "main", "index": 0}]]
+    },
+    "Store Document": {
+      "main": [[{"node": "Send Confirmation", "type": "main", "index": 0}]]
+    },
+    "Embed Query": {
+      "main": [[
+        {"node": "Vector Search", "type": "main", "index": 0},
+        {"node": "Get History", "type": "main", "index": 0}
+      ]]
+    },
+    "Vector Search": {
+      "main": [[{"node": "Build Context", "type": "main", "index": 0}]]
+    },
+    "Get History": {
+      "main": [[{"node": "Build Context", "type": "main", "index": 0}]]
+    },
+    "Build Context": {
+      "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+    },
+    "Generate Response": {
+      "main": [[
+        {"node": "Save User Message", "type": "main", "index": 0},
+        {"node": "Save AI Response", "type": "main", "index": 0},
+        {"node": "Send Response", "type": "main", "index": 0}
+      ]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "versionId": "fixed-v1"
+}
