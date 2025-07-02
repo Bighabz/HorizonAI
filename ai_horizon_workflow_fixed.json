@@ -366,48 +366,12 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/rpc/match_documents",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "query_embedding",
-              "value": "={{ $('Embed Query').item.json.data[0].embedding }}"
-            },
-            {
-              "name": "user_id",
-              "value": "={{ $('Switch').item.json.userId }}"
-            },
-            {
-              "name": "match_threshold",
-              "value": "0.3"
-            },
-            {
-              "name": "match_count",
-              "value": "5"
-            }
-          ]
-        }
+        "operation": "select",
+        "tableId": "documents",
+        "returnAll": false,
+        "limit": 5,
+        "filterType": "string",
+        "filterString": "user_id=eq.{{ $('Switch').item.json.userId }}&order=created_at.desc"
       },
       "id": "12",
       "name": "Vector Search",
