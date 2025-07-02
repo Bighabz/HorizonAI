@@ -1,0 +1,902 @@
+{
+  "name": "AI Horizon RAG Agent - Complete Production",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "document",
+          "edited_message"
+        ],
+        "additionalFields": {
+          "download": false
+        }
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "telegram-bot-horizon",
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Route Detection with Bot Message Filtering\nconst update = $json;\nlet routeType = 'unknown';\nlet data = {};\n\n// IMPORTANT: Skip bot messages to prevent loops\nif (update.message && update.message.from && update.message.from.is_bot) {\n  console.log('Skipping bot message to prevent loop');\n  return {\n    json: {\n      routeType: 'skip',\n      reason: 'Bot message ignored to prevent loop'\n    }\n  };\n}\n\n// Handle Telegram messages\nif (update.message) {\n  if (update.message.text?.startsWith('/')) {\n    const command = update.message.text.split(' ')[0].toLowerCase();\n    \n    if (command === '/stats') {\n      routeType = 'stats';\n      data = {\n        routeType: 'stats',\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id\n      };\n    } else if (command === '/export') {\n      routeType = 'export';\n      data = {\n        routeType: 'export',\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id\n      };\n    }\n  }\n  else if (update.message.document) {\n    const doc = update.message.document;\n    routeType = 'document';\n    data = {\n      routeType: 'document',\n      fileId: doc.file_id,\n      fileName: doc.file_name || 'unknown',\n      mimeType: doc.mime_type || 'application/octet-stream',\n      fileSize: doc.file_size,\n      chatId: update.message.chat.id,\n      userId: update.message.from.id,\n      username: update.message.from.username || update.message.from.first_name,\n      messageId: update.message.message_id,\n      source: 'telegram'\n    };\n  } \n  else if (update.message.text) {\n    const text = update.message.text;\n    const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n    const urls = text.match(urlRegex);\n    \n    if (urls && urls.length > 0) {\n      const url = urls[0];\n      \n      if (url.includes('youtube.com') || url.includes('youtu.be')) {\n        routeType = 'youtube';\n        data = {\n          routeType: 'youtube',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id\n        };\n      } else if (url.includes('tiktok.com')) {\n        routeType = 'tiktok';\n        data = {\n          routeType: 'tiktok',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id\n        };\n      } else {\n        routeType = 'url';\n        data = {\n          routeType: 'url',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id\n        };\n      }\n    } else {\n      // Regular chat message - RAG query\n      routeType = 'chat';\n      data = {\n        routeType: 'chat',\n        message: text,\n        query: text,\n        text: text,\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        timestamp: new Date().toISOString()\n      };\n    }\n  }\n}\n\nreturn {\n  json: data\n};"
+      },
+      "id": "detect-route-type",
+      "name": "Detect Route Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "chat"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "route-by-type",
+      "name": "Route by Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}"
+      },
+      "id": "download-telegram-file",
+      "name": "Download Telegram File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [800, 100],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/doc-to-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.dumplingAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "inputMethod",
+              "value": "file"
+            },
+            {
+              "name": "file",
+              "value": "={{ $binary.data }}"
+            }
+          ]
+        }
+      },
+      "id": "process-document-dumpling",
+      "name": "Process Document (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 100],
+      "credentials": {
+        "dumplingAi": {
+          "id": "dumpling-credentials",
+          "name": "Dumpling AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/get-youtube-transcript",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.dumplingAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "videoUrl",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "includeTimestamps",
+              "value": true
+            }
+          ]
+        }
+      },
+      "id": "process-youtube-dumpling",
+      "name": "Process YouTube (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 200],
+      "credentials": {
+        "dumplingAi": {
+          "id": "dumpling-credentials",
+          "name": "Dumpling AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "You are an AI Horizon Forecasting expert analyzing how AI impacts cybersecurity work based on the DCWF framework.\n\nClassify content into these categories:\n- Replace: AI will fully automate this task without human involvement\n- Augment: AI will support/accelerate but not fully automate the task  \n- Remain Human: Task will remain primarily human due to complexity, judgment, ethics\n- New Task: Emerging job duty created by AI advances\n\nScore on 0-1 scale:\n- Credibility: Source reliability and authority\n- Impact: Magnitude of potential change to workforce\n- Specificity: Level of detail and actionability\n- Confidence: Your certainty in the classification\n\nDCWF Task Mapping - identify specific DCWF/NIST task IDs mentioned or implied:\n- T0001: Acquire and manage resources for IT security\n- T0002: Acquire resources for continuity operations\n- T0419: Maintain knowledge of laws and regulations\n- T0420: Administer test beds and evaluate applications\n- T0421: Manage organizational knowledge indexing\n- And 900+ other DCWF tasks\n\nReturn JSON:\n{\n  \"classification\": \"Replace|Augment|Remain Human|New Task\",\n  \"confidence\": 0.0-1.0,\n  \"rationale\": \"Clear explanation with specific evidence\",\n  \"scores\": {\n    \"credibility\": 0.0-1.0,\n    \"impact\": 0.0-1.0,\n    \"specificity\": 0.0-1.0\n  },\n  \"dcwf_tasks\": [\"T0001\", \"T0419\"],\n  \"summary\": \"2-3 sentence summary\",\n  \"title\": \"Brief descriptive title\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "Analyze this content for AI's impact on cybersecurity work:\n\n{{ $json.text || $json.transcript || $json.content }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "responseFormat": {
+            "type": "json_object"
+          }
+        }
+      },
+      "id": "ai-classify-content",
+      "name": "AI Classify Content",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.3,
+      "position": [1200, 150],
+      "credentials": {
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.openAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-ada-002"
+            },
+            {
+              "name": "input",
+              "value": "={{ $('Process Document (Dumpling)').item.json.text || $('Process YouTube (Dumpling)').item.json.transcript }}"
+            }
+          ]
+        }
+      },
+      "id": "generate-document-embedding",
+      "name": "Generate Document Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 150],
+      "credentials": {
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "documents",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "artifact_id",
+              "value": "={{ $now.format('YYYYMMDD_HHmmss') + '_' + $('Detect Route Type').item.json.userId }}"
+            },
+            {
+              "column": "title",
+              "value": "={{ $('AI Classify Content').item.json.title || $('Detect Route Type').item.json.fileName || 'Untitled' }}"
+            },
+            {
+              "column": "summary",
+              "value": "={{ $('AI Classify Content').item.json.summary }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $('Process Document (Dumpling)').item.json.text || $('Process YouTube (Dumpling)').item.json.transcript }}"
+            },
+            {
+              "column": "source_url",
+              "value": "={{ $('Detect Route Type').item.json.url || '' }}"
+            },
+            {
+              "column": "source_type",
+              "value": "={{ $('Detect Route Type').item.json.routeType }}"
+            },
+            {
+              "column": "filename",
+              "value": "={{ $('Detect Route Type').item.json.fileName || 'unknown' }}"
+            },
+            {
+              "column": "classification",
+              "value": "={{ $('AI Classify Content').item.json.classification }}"
+            },
+            {
+              "column": "confidence",
+              "value": "={{ $('AI Classify Content').item.json.confidence }}"
+            },
+            {
+              "column": "rationale",
+              "value": "={{ $('AI Classify Content').item.json.rationale }}"
+            },
+            {
+              "column": "dcwf_task_ids",
+              "value": "={{ $('AI Classify Content').item.json.dcwf_tasks }}"
+            },
+            {
+              "column": "credibility_score",
+              "value": "={{ $('AI Classify Content').item.json.scores.credibility }}"
+            },
+            {
+              "column": "impact_score",
+              "value": "={{ $('AI Classify Content').item.json.scores.impact }}"
+            },
+            {
+              "column": "specificity_score",
+              "value": "={{ $('AI Classify Content').item.json.scores.specificity }}"
+            },
+            {
+              "column": "embedding",
+              "value": "={{ '[' + $json.data[0].embedding.join(',') + ']' }}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{ $('Detect Route Type').item.json.userId }}"
+            },
+            {
+              "column": "chat_id",
+              "value": "={{ $('Detect Route Type').item.json.chatId }}"
+            },
+            {
+              "column": "username",
+              "value": "={{ $('Detect Route Type').item.json.username }}"
+            }
+          ]
+        }
+      },
+      "id": "store-document-supabase",
+      "name": "Store Document in Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1600, 150],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $credentials.telegramApi.accessToken }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Detect Route Type').item.json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "📄 *Document processed successfully!*\\n\\n📌 **File:** {{ $('Detect Route Type').item.json.fileName }}\\n🏷️ **Classification:** {{ $('AI Classify Content').item.json.classification }} ({{ Math.round($('AI Classify Content').item.json.confidence * 100) }}% confidence)\\n📝 **Summary:** {{ $('AI Classify Content').item.json.summary }}\\n🎯 **DCWF Tasks:** {{ $('AI Classify Content').item.json.dcwf_tasks.join(', ') }}\\n💬 **Ask me anything about it!**"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      },
+      "id": "send-document-confirmation",
+      "name": "Send Document Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1800, 150],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare chat input for RAG processing\nconst input = $json;\nconst userMessage = input.message || input.query || input.text || '';\n\nif (!userMessage) {\n  throw new Error('No message provided');\n}\n\nreturn {\n  json: {\n    userMessage: userMessage,\n    chatId: input.chatId,\n    userId: input.userId,\n    username: input.username,\n    messageId: input.messageId,\n    timestamp: input.timestamp || new Date().toISOString()\n  }\n};"
+      },
+      "id": "prepare-chat-input",
+      "name": "Prepare Chat Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.openAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-ada-002"
+            },
+            {
+              "name": "input",
+              "value": "={{ $json.userMessage }}"
+            }
+          ]
+        }
+      },
+      "id": "generate-query-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 400],
+      "credentials": {
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "runSql",
+        "query": "SELECT *, (embedding <=> '[{{ $json.data[0].embedding.join(',') }}]'::vector) as distance FROM documents WHERE user_id = '{{ $('Prepare Chat Input').item.json.userId }}' AND (embedding <=> '[{{ $json.data[0].embedding.join(',') }}]'::vector) < 0.3 ORDER BY distance LIMIT 5;"
+      },
+      "id": "vector-search-documents",
+      "name": "Vector Search Documents",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1200, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "chat_memory",
+        "limit": 10,
+        "filterType": "string",
+        "filterString": "=user_id.eq.{{ $('Prepare Chat Input').item.json.userId }},chat_id.eq.{{ $('Prepare Chat Input').item.json.chatId }}"
+      },
+      "id": "get-chat-history",
+      "name": "Get Chat History",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1200, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build comprehensive AI context from chat history and vector search\nlet chatData, history = [], searchResults = [];\n\n// Get chat data\ntry {\n  chatData = $('Prepare Chat Input').item.json;\n} catch (e) {\n  throw new Error('Chat input data not available');\n}\n\n// Get chat history\ntry {\n  history = $('Get Chat History').all() || [];\n} catch (e) {\n  console.log('No chat history available');\n}\n\n// Get vector search results\ntry {\n  searchResults = $('Vector Search Documents').all() || [];\n} catch (e) {\n  console.log('No search results available');\n}\n\n// Format chat history\nconst formattedHistory = history\n  .slice(0, 5)\n  .reverse()\n  .map(msg => `${msg.json.role === 'user' ? 'User' : 'Assistant'}: ${msg.json.content}`)\n  .join('\\n\\n');\n\n// Format search results with similarity scores\nlet relevantDocs = 'No relevant documents found.';\nif (searchResults.length > 0) {\n  relevantDocs = searchResults\n    .filter(doc => doc.json && doc.json.distance < 0.3)\n    .slice(0, 3)\n    .map(doc => {\n      const data = doc.json;\n      const title = data.title || 'Untitled';\n      const classification = data.classification || 'Unknown';\n      const content = (data.content || '').substring(0, 800);\n      const filename = data.filename || 'Unknown file';\n      const similarity = ((1 - data.distance) * 100).toFixed(1);\n      const dcwfTasks = data.dcwf_task_ids ? data.dcwf_task_ids.join(', ') : 'None';\n      return `📄 **Document:** ${title}\\n📁 **File:** ${filename}\\n🏷️ **Classification:** ${classification}\\n🎯 **DCWF Tasks:** ${dcwfTasks}\\n📊 **Similarity:** ${similarity}%\\n📝 **Content:** ${content}...\\n`;\n    })\n    .join('\\n---\\n');\n}\n\n// Build comprehensive system message for AI Horizon Forecasting\nconst systemMessage = `You are an AI Horizon Forecasting assistant specializing in cybersecurity workforce analysis. You help analyze how artificial intelligence impacts cybersecurity tasks and roles based on the DCWF (Department of Homeland Security Cybersecurity Workforce Framework).\n\nYour expertise includes:\n- Classifying AI impact as: Replace, Augment, Remain Human, or New Task\n- Mapping findings to specific DCWF task IDs (T0001-T0999+) and work roles\n- Providing insights on workforce transformation trends\n- Analyzing documents, videos, and research for evidence\n- Scoring artifacts on credibility, impact, and specificity\n\nRelevant documents from the knowledge base (with similarity scores):\n${relevantDocs}\n\nRecent conversation history:\n${formattedHistory || 'No previous messages.'}\n\nWhen relevant documents are found, reference them in your response with their similarity scores and DCWF task mappings. Be specific about the sources and provide actionable insights. Always mention specific DCWF task IDs when relevant.\n\nFor forecasting questions, provide evidence-based analysis with confidence scores and rationale.`;\n\nreturn {\n  json: {\n    systemMessage: systemMessage,\n    userMessage: chatData.userMessage,\n    chatId: chatData.chatId,\n    userId: chatData.userId,\n    username: chatData.username,\n    messageId: chatData.messageId,\n    documentsFound: searchResults.length,\n    historyCount: history.length,\n    hasRelevantDocs: searchResults.filter(doc => doc.json && doc.json.distance < 0.3).length > 0\n  }\n};"
+      },
+      "id": "build-ai-context",
+      "name": "Build AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 500]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "={{ $json.systemMessage }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.userMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1500
+        }
+      },
+      "id": "generate-ai-response",
+      "name": "Generate AI Response",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.3,
+      "position": [1600, 500],
+      "credentials": {
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "chat_memory",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "user_id",
+              "value": "={{ $('Build AI Context').item.json.userId }}"
+            },
+            {
+              "column": "chat_id",
+              "value": "={{ $('Build AI Context').item.json.chatId }}"
+            },
+            {
+              "column": "username",
+              "value": "={{ $('Build AI Context').item.json.username }}"
+            },
+            {
+              "column": "role",
+              "value": "user"
+            },
+            {
+              "column": "content",
+              "value": "={{ $('Build AI Context').item.json.userMessage }}"
+            },
+            {
+              "column": "message_id",
+              "value": "={{ $('Build AI Context').item.json.messageId }}"
+            }
+          ]
+        }
+      },
+      "id": "save-user-message",
+      "name": "Save User Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1800, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "chat_memory",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "user_id",
+              "value": "={{ $('Build AI Context').item.json.userId }}"
+            },
+            {
+              "column": "chat_id",
+              "value": "={{ $('Build AI Context').item.json.chatId }}"
+            },
+            {
+              "column": "username",
+              "value": "={{ $('Build AI Context').item.json.username }}"
+            },
+            {
+              "column": "role",
+              "value": "assistant"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.message.content }}"
+            }
+          ]
+        }
+      },
+      "id": "save-assistant-response",
+      "name": "Save Assistant Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1800, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{ $credentials.telegramApi.accessToken }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Build AI Context').item.json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Generate AI Response').item.json.message.content }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      },
+      "id": "send-telegram-response",
+      "name": "Send Telegram Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Detect Route Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Route Type": {
+      "main": [
+        [
+          {
+            "node": "Route by Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Type": {
+      "main": [
+        [
+          {
+            "node": "Download Telegram File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process YouTube (Dumpling)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Chat Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Telegram File": {
+      "main": [
+        [
+          {
+            "node": "Process Document (Dumpling)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Document (Dumpling)": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Document Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process YouTube (Dumpling)": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Document Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Document Embedding": {
+      "main": [
+        [
+          {
+            "node": "Store Document in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Document in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Send Document Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {
+            "node": "Vector Search Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Search Documents": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chat History": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Context": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Response": {
+      "main": [
+        [
+          {
+            "node": "Save User Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Assistant Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-12-19T12:00:00.000Z",
+  "versionId": "ai-horizon-complete-v1.0"
+}
