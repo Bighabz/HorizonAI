@@ -110,11 +110,26 @@
       "parameters": {
         "method": "POST",
         "url": "https://app.dumplingai.com/api/v1/doc-to-text",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
+            {
+              "name": "inputMethod",
+              "value": "file"
+            },
             {
               "name": "file",
               "value": "={{ $binary.data }}"
