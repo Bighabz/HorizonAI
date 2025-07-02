@@ -1,0 +1,230 @@
+{
+  "name": "AI Horizon RAG Agent - Complete Production",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "document",
+          "edited_message"
+        ],
+        "additionalFields": {
+          "download": false
+        }
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "telegram-bot-horizon",
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Route Detection with Bot Message Filtering\nconst update = $json;\nlet routeType = 'unknown';\nlet data = {};\n\n// IMPORTANT: Skip bot messages to prevent loops\nif (update.message && update.message.from && update.message.from.is_bot) {\n  console.log('Skipping bot message to prevent loop');\n  return {\n    json: {\n      routeType: 'skip',\n      reason: 'Bot message ignored to prevent loop'\n    }\n  };\n}\n\n// Handle Telegram messages\nif (update.message) {\n  if (update.message.text?.startsWith('/')) {\n    const command = update.message.text.split(' ')[0].toLowerCase();\n    \n    if (command === '/stats') {\n      routeType = 'stats';\n      data = {\n        routeType: 'stats',\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id\n      };\n    } else if (command === '/export') {\n      routeType = 'export';\n      data = {\n        routeType: 'export',\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id\n      };\n    }\n  }\n  else if (update.message.document) {\n    const doc = update.message.document;\n    routeType = 'document';\n    data = {\n      routeType: 'document',\n      fileId: doc.file_id,\n      fileName: doc.file_name || 'unknown',\n      mimeType: doc.mime_type || 'application/octet-stream',\n      fileSize: doc.file_size,\n      chatId: update.message.chat.id,\n      userId: update.message.from.id,\n      username: update.message.from.username || update.message.from.first_name,\n      messageId: update.message.message_id,\n      source: 'telegram'\n    };\n  } \n  else if (update.message.text) {\n    const text = update.message.text;\n    const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n    const urls = text.match(urlRegex);\n    \n    if (urls && urls.length > 0) {\n      const url = urls[0];\n      \n      if (url.includes('youtube.com') || url.includes('youtu.be')) {\n        routeType = 'youtube';\n        data = {\n          routeType: 'youtube',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id\n        };\n      } else if (url.includes('tiktok.com')) {\n        routeType = 'tiktok';\n        data = {\n          routeType: 'tiktok',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id\n        };\n      } else {\n        routeType = 'url';\n        data = {\n          routeType: 'url',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id\n        };\n      }\n    } else {\n      // Regular chat message - RAG query\n      routeType = 'chat';\n      data = {\n        routeType: 'chat',\n        message: text,\n        query: text,\n        text: text,\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        timestamp: new Date().toISOString()\n      };\n    }\n  }\n}\n\nreturn {\n  json: data\n};"
+      },
+      "id": "detect-route-type",
+      "name": "Detect Route Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "chat"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "route-by-type",
+      "name": "Route by Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}"
+      },
+      "id": "download-telegram-file",
+      "name": "Download Telegram File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [800, 100],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/doc-to-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.dumplingAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "inputMethod",
+              "value": "file"
+            },
+            {
+              "name": "file",
+              "value": "={{ $binary.data }}"
+            }
+          ]
+        }
+      },
+      "id": "process-document-dumpling",
+      "name": "Process Document (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 100],
+      "credentials": {
+        "dumplingAi": {
+          "id": "dumpling-credentials",
+          "name": "Dumpling AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/get-youtube-transcript",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.dumplingAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "videoUrl",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "includeTimestamps",
+              "value": true
+            }
+          ]
+        }
+      },
+      "id": "process-youtube-dumpling",
+      "name": "Process YouTube (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 200],
+      "credentials": {
+        "dumplingAi": {
+          "id": "dumpling-credentials",
+          "name": "Dumpling AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "You are an AI Horizon Forecasting expert analyzing how AI impacts cybersecurity work based on the DCWF framework.\n\nClassify content into these categories:\n- Rep
