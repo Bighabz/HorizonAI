@@ -1,121 +1,93 @@
-# AI Horizon RAG Agent for n8n
+# AI Horizon RAG Agent for Cybersecurity Workforce Analysis
 
-An advanced RAG (Retrieval-Augmented Generation) agent built with n8n for analyzing AI's impact on cybersecurity workforce using the DCWF framework.
+## 🎯 Project Overview
 
-## 🚀 Features
+This project builds an AI-powered Retrieval-Augmented Generation (RAG) agent that analyzes how artificial intelligence impacts cybersecurity workforce tasks based on the **DCWF (Department of Homeland Security Cybersecurity Workforce Framework)**.
 
-- **Telegram Bot Integration** - Interactive bot (@research_bot) for document processing and queries
-- **Document Processing** - Supports PDFs, Word docs, YouTube videos via Dumpling AI
-- **Vector Search** - Semantic search using Supabase with pgvector extension
-- **AI Classification** - Categorizes content as Replace/Augment/Remain Human/New Task
-- **DCWF Mapping** - Maps findings to 900+ DCWF cybersecurity tasks
-- **Chat Memory** - Maintains conversation context for better responses
-- **Weekly Reports** - Automated analysis summaries
+### Key Features
+- **Document Processing**: Upload PDFs, Word docs → OCR → AI classification → Vector storage
+- **YouTube Analysis**: Extract transcripts → Analyze AI impact → Store with embeddings  
+- **RAG Chat Interface**: Query knowledge base with semantic search
+- **DCWF Task Mapping**: Maps findings to specific cybersecurity task IDs (T0001-T0999+)
+- **AI Impact Classification**: Categorizes as Replace/Augment/Remain Human/New Task
 
 ## 📁 Repository Structure
 
 ```
-.
-├── ai_horizon_complete_workflow.json  # Complete n8n workflow (import this!)
-├── supabase_reset_schema.sql         # Database schema with pgvector
-├── supabase_schema_complete.sql      # Alternative schema setup
-├── My_workflow_26.json               # Original workflow reference
-├── DCWF_Clean.csv                    # DCWF task data (CSV format)
-├── DCWF_Clean.xlsx                   # DCWF task data (Excel format)
-├── Horizon_Pipeline                  # Pipeline requirements document
-├── requirements.txt                  # Python dependencies
-└── README.md                         # This file
+├── DCWFMASTER.xlsx                    # Complete DCWF framework data (1,350+ tasks, 1,772+ KSAs)
+├── AIHORIZON.txt                      # AI Horizon forecasting pipeline requirements  
+├── AI_HORIZON_WORKFLOW_FIX_PROMPT.md  # Technical prompt for workflow development
+├── README.md                          # This file
+├── requirements.txt                   # Python dependencies
+├── n8n_credentials_setup.md           # API credentials setup guide
+└── .gitignore                         # Git ignore rules
 ```
 
-## 🛠️ Setup Instructions
+## � Current Status: WORKFLOW NEEDS FIXING
 
-### 1. Database Setup (Supabase)
+The n8n workflow requires technical expertise to properly connect all nodes for:
+- Vector search with pgvector/Supabase
+- OpenAI embeddings and chat completions
+- Document processing with Dumpling AI OCR
+- Telegram bot integration
 
-Run the schema setup in your Supabase SQL editor:
-```sql
--- Use supabase_reset_schema.sql to drop old tables and create new ones
--- This includes pgvector extension and all required functions
-```
+**See `AI_HORIZON_WORKFLOW_FIX_PROMPT.md` for complete technical specifications.**
 
-### 2. Import n8n Workflow
+## 🔧 Technical Stack
 
-1. Go to your n8n instance (e.g., https://n8n.waxmybot.com)
-2. Click **"+"** → **"..."** → **"Import from file"**
-3. Upload `ai_horizon_complete_workflow.json`
+- **Workflow Engine**: n8n (self-hosted)
+- **Vector Database**: Supabase PostgreSQL with pgvector extension
+- **AI Models**: OpenAI GPT-4o-mini, text-embedding-ada-002
+- **OCR Service**: Dumpling AI for document/video processing
+- **Interface**: Telegram Bot (@research_bot)
+- **Framework**: DCWF cybersecurity workforce tasks
 
-### 3. Configure Credentials in n8n
+## 📊 Data Sources
 
-Create these credentials in n8n:
+### DCWFMASTER.xlsx
+- **1,350 Tasks** mapped to cybersecurity work roles
+- **1,772 KSAs** (Knowledge, Skills, Abilities)
+- **3,123 total entries** with NIST SP mappings
+- Real DHS cybersecurity workforce framework data
 
-#### Telegram Bot API
-- Name: `Telegram Bot API`
-- Access Token: `[Your Bot Token]`
+### AIHORIZON.txt  
+- AI Horizon Forecasting Pipeline requirements
+- Classification methodology (Replace/Augment/Remain Human/New Task)
+- Scoring criteria (credibility, impact, specificity)
+- Integration specifications
 
-#### OpenAI API
-- Name: `OpenAI API`
-- API Key: `[Your OpenAI Key]`
+## 🎯 Use Cases
 
-#### Dumpling AI API
-- Name: `Dumpling AI API`
-- API Key: `[Your Dumpling Key]`
+1. **Workforce Planning**: Analyze how AI will impact specific cybersecurity roles
+2. **Training Development**: Identify skills that need human focus vs automation
+3. **Research Analysis**: Process academic papers, reports, videos for AI impact insights
+4. **Strategic Planning**: Evidence-based forecasting for cybersecurity workforce evolution
 
-#### Supabase API
-- Name: `Supabase API`
-- URL: `[Your Supabase URL]`
-- Service Key: `[Your Service Key]`
+## 🔑 API Requirements
 
-### 4. Activate Workflow
+- **OpenAI API**: For embeddings and chat completions
+- **Supabase**: PostgreSQL database with pgvector for semantic search
+- **Dumpling AI**: OCR and transcript extraction
+- **Telegram Bot API**: User interface
 
-1. Open the imported workflow
-2. Click **"Activate"** toggle
-3. Test with Telegram bot
+## 📋 Next Steps
 
-## 💬 Usage
-
-### Document Processing
-- Send PDF/Word documents to the Telegram bot
-- Send YouTube video links for transcript analysis
-- Documents are classified and stored with vector embeddings
-
-### RAG Queries
-- Ask questions about AI's impact on cybersecurity
-- Get DCWF task mappings
-- Receive evidence-based analysis with confidence scores
-
-### Commands
-- `/stats` - View your usage statistics
-- `/export` - Export analysis results
-
-## 🔧 Technical Details
-
-- **Vector Similarity**: Uses cosine distance < 0.3 for relevance
-- **Embeddings**: OpenAI text-embedding-ada-002
-- **LLM**: GPT-4o-mini for classification and responses
-- **Context Window**: Last 5 chat messages + top 3 relevant documents
-
-## 📊 DCWF Classification System
-
-Content is classified into:
-- **Replace**: AI will fully automate this task
-- **Augment**: AI will support but not fully automate
-- **Remain Human**: Task remains primarily human-driven
-- **New Task**: Emerging duties created by AI advances
-
-Each classification includes:
-- Credibility score (0-1)
-- Impact score (0-1)
-- Specificity score (0-1)
-- Confidence level
-- DCWF task mappings
+1. **Fix n8n Workflow**: Use the technical prompt to create working node connections
+2. **Setup Database**: Import DCWF data and create vector indexes
+3. **Test Integration**: Verify document processing, chat, and vector search
+4. **Deploy Production**: Configure credentials and activate bot
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+This project analyzes real cybersecurity workforce data. Contributions should:
+- Maintain data accuracy and DCWF framework integrity
+- Follow evidence-based AI impact analysis methodology
+- Ensure proper vector search and RAG functionality
 
-## 📝 License
+## � License
 
-This project is part of the AI Horizon Forecasting initiative for cybersecurity workforce analysis.
+This project contains public domain DCWF data from the Department of Homeland Security.
+
+---
+
+**Status**: Repository cleaned and organized. Workflow development needed for production deployment.
