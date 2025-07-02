@@ -1,0 +1,33 @@
+# How to Get Your Workflow File
+
+The workflow file `ai_horizon_complete_workflow.json` is already created but it's too large to display in the terminal.
+
+## Option 1: Use Pastebin (EASIEST)
+1. I'll create a Pastebin link for you
+2. Go to the link
+3. Copy all the content
+4. Save as `ai_horizon_complete_workflow.json`
+
+## Option 2: Use GitHub Gist
+1. Go to https://gist.github.com
+2. Create a new gist
+3. I'll give you the content in parts
+
+## Option 3: Direct File Transfer
+Since the file is on the server, you need to download it to your computer.
+
+The file contains:
+- 19 nodes for complete RAG functionality
+- Telegram bot integration
+- Document processing with Dumpling AI
+- Vector search with Supabase
+- AI classification with GPT-4o-mini
+- Chat memory and history
+- Proper node connections
+
+File size: 32,973 bytes (about 33KB)
+
+Would you like me to:
+1. Create a Pastebin link?
+2. Show you how to use curl/wget to download it?
+3. Create a simpler version of the workflow?

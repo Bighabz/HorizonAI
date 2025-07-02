@@ -1,0 +1,153 @@
+rocess Document (Dumpling)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Document (Dumpling)": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Document Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process YouTube (Dumpling)": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Document Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Document Embedding": {
+      "main": [
+        [
+          {
+            "node": "Store Document in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Document in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Send Document Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Query Embedding",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {
+            "node": "Vector Search Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Search Documents": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chat History": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Context": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Response": {
+      "main": [
+        [
+          {
+            "node": "Save User Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Assistant Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-12-19T12:00:00.000Z",
+  "versionId": "ai-horizon-complete-v1.0"
+}

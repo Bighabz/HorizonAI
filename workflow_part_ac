@@ -1,72 +1,23 @@
-FROM documents WHERE user_id = '{{ $('Prepare Chat Input').item.json.userId }}' AND (embedding <=> '[{{ $json.data[0].embedding.join(',') }}]'::vector) < 0.3 ORDER BY distance LIMIT 5;"
-      },
-      "id": "vector-search-documents",
-      "name": "Vector Search Documents",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1200, 400],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-credentials",
-          "name": "Supabase API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "chat_memory",
-        "limit": 10,
-        "filterType": "string",
-        "filterString": "=user_id.eq.{{ $('Prepare Chat Input').item.json.userId }},chat_id.eq.{{ $('Prepare Chat Input').item.json.chatId }}"
-      },
-      "id": "get-chat-history",
-      "name": "Get Chat History",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1200, 600],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-credentials",
-          "name": "Supabase API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build comprehensive AI context from chat history and vector search\nlet chatData, history = [], searchResults = [];\n\n// Get chat data\ntry {\n  chatData = $('Prepare Chat Input').item.json;\n} catch (e) {\n  throw new Error('Chat input data not available');\n}\n\n// Get chat history\ntry {\n  history = $('Get Chat History').all() || [];\n} catch (e) {\n  console.log('No chat history available');\n}\n\n// Get vector search results\ntry {\n  searchResults = $('Vector Search Documents').all() || [];\n} catch (e) {\n  console.log('No search results available');\n}\n\n// Format chat history\nconst formattedHistory = history\n  .slice(0, 5)\n  .reverse()\n  .map(msg => `${msg.json.role === 'user' ? 'User' : 'Assistant'}: ${msg.json.content}`)\n  .join('\\n\\n');\n\n// Format search results with similarity scores\nlet relevantDocs = 'No relevant documents found.';\nif (searchResults.length > 0) {\n  relevantDocs = searchResults\n    .filter(doc => doc.json && doc.json.distance < 0.3)\n    .slice(0, 3)\n    .map(doc => {\n      const data = doc.json;\n      const title = data.title || 'Untitled';\n      const classification = data.classification || 'Unknown';\n      const content = (data.content || '').substring(0, 800);\n      const filename = data.filename || 'Unknown file';\n      const similarity = ((1 - data.distance) * 100).toFixed(1);\n      const dcwfTasks = data.dcwf_task_ids ? data.dcwf_task_ids.join(', ') : 'None';\n      return `📄 **Document:** ${title}\\n📁 **File:** ${filename}\\n🏷️ **Classification:** ${classification}\\n🎯 **DCWF Tasks:** ${dcwfTasks}\\n📊 **Similarity:** ${similarity}%\\n📝 **Content:** ${content}...\\n`;\n    })\n    .join('\\n---\\n');\n}\n\n// Build comprehensive system message for AI Horizon Forecasting\nconst systemMessage = `You are an AI Horizon Forecasting assistant specializing in cybersecurity workforce analysis. You help analyze how artificial intelligence impacts cybersecurity tasks and roles based on the DCWF (Department of Homeland Security Cybersecurity Workforce Framework).\n\nYour expertise includes:\n- Classifying AI impact as: Replace, Augment, Remain Human, or New Task\n- Mapping findings to specific DCWF task IDs (T0001-T0999+) and work roles\n- Providing insights on workforce transformation trends\n- Analyzing documents, videos, and research for evidence\n- Scoring artifacts on credibility, impact, and specificity\n\nRelevant documents from the knowledge base (with similarity scores):\n${relevantDocs}\n\nRecent conversation history:\n${formattedHistory || 'No previous messages.'}\n\nWhen relevant documents are found, reference them in your response with their similarity scores and DCWF task mappings. Be specific about the sources and provide actionable insights. Always mention specific DCWF task IDs when relevant.\n\nFor forecasting questions, provide evidence-based analysis with confidence scores and rationale.`;\n\nreturn {\n  json: {\n    systemMessage: systemMessage,\n    userMessage: chatData.userMessage,\n    chatId: chatData.chatId,\n    userId: chatData.userId,\n    username: chatData.username,\n    messageId: chatData.messageId,\n    documentsFound: searchResults.length,\n    historyCount: history.length,\n    hasRelevantDocs: searchResults.filter(doc => doc.json && doc.json.distance < 0.3).length > 0\n  }\n};"
-      },
-      "id": "build-ai-context",
-      "name": "Build AI Context",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1400, 500]
-    },
-    {
-      "parameters": {
-        "model": "gpt-4o-mini",
-        "messages": {
-          "messageValues": [
-            {
-              "role": "system",
-              "content": "={{ $json.systemMessage }}"
+lace: AI will fully automate this task without human involvement\n- Augment: AI will support/accelerate but not fully automate the task  \n- Remain Human: Task will remain primarily human due to complexity, judgment, ethics\n- New Task: Emerging job duty created by AI advances\n\nScore on 0-1 scale:\n- Credibility: Source reliability and authority\n- Impact: Magnitude of potential change to workforce\n- Specificity: Level of detail and actionability\n- Confidence: Your certainty in the classification\n\nDCWF Task Mapping - identify specific DCWF/NIST task IDs mentioned or implied:\n- T0001: Acquire and manage resources for IT security\n- T0002: Acquire resources for continuity operations\n- T0419: Maintain knowledge of laws and regulations\n- T0420: Administer test beds and evaluate applications\n- T0421: Manage organizational knowledge indexing\n- And 900+ other DCWF tasks\n\nReturn JSON:\n{\n  \"classification\": \"Replace|Augment|Remain Human|New Task\",\n  \"confidence\": 0.0-1.0,\n  \"rationale\": \"Clear explanation with specific evidence\",\n  \"scores\": {\n    \"credibility\": 0.0-1.0,\n    \"impact\": 0.0-1.0,\n    \"specificity\": 0.0-1.0\n  },\n  \"dcwf_tasks\": [\"T0001\", \"T0419\"],\n  \"summary\": \"2-3 sentence summary\",\n  \"title\": \"Brief descriptive title\"\n}"
             },
             {
               "role": "user",
-              "content": "={{ $json.userMessage }}"
+              "content": "Analyze this content for AI's impact on cybersecurity work:\n\n{{ $json.text || $json.transcript || $json.content }}"
             }
           ]
         },
         "options": {
-          "temperature": 0.7,
-          "maxTokens": 1500
+          "temperature": 0.3,
+          "responseFormat": {
+            "type": "json_object"
+          }
         }
       },
-      "id": "generate-ai-response",
-      "name": "Generate AI Response",
+      "id": "ai-classify-content",
+      "name": "AI Classify Content",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1.3,
-      "position": [1600, 500],
+      "position": [1200, 150],
       "credentials": {
         "openAi": {
           "id": "openai-credentials",
@@ -76,97 +27,15 @@ FROM documents WHERE user_id = '{{ $('Prepare Chat Input').item.json.userId }}' 
     },
     {
       "parameters": {
-        "operation": "insert",
-        "tableId": "chat_memory",
-        "columnsUi": {
-          "columnValues": [
-            {
-              "column": "user_id",
-              "value": "={{ $('Build AI Context').item.json.userId }}"
-            },
-            {
-              "column": "chat_id",
-              "value": "={{ $('Build AI Context').item.json.chatId }}"
-            },
-            {
-              "column": "username",
-              "value": "={{ $('Build AI Context').item.json.username }}"
-            },
-            {
-              "column": "role",
-              "value": "user"
-            },
-            {
-              "column": "content",
-              "value": "={{ $('Build AI Context').item.json.userMessage }}"
-            },
-            {
-              "column": "message_id",
-              "value": "={{ $('Build AI Context').item.json.messageId }}"
-            }
-          ]
-        }
-      },
-      "id": "save-user-message",
-      "name": "Save User Message",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1800, 400],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-credentials",
-          "name": "Supabase API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "insert",
-        "tableId": "chat_memory",
-        "columnsUi": {
-          "columnValues": [
-            {
-              "column": "user_id",
-              "value": "={{ $('Build AI Context').item.json.userId }}"
-            },
-            {
-              "column": "chat_id",
-              "value": "={{ $('Build AI Context').item.json.chatId }}"
-            },
-            {
-              "column": "username",
-              "value": "={{ $('Build AI Context').item.json.username }}"
-            },
-            {
-              "column": "role",
-              "value": "assistant"
-            },
-            {
-              "column": "content",
-              "value": "={{ $json.message.content }}"
-            }
-          ]
-        }
-      },
-      "id": "save-assistant-response",
-      "name": "Save Assistant Response",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1800, 600],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-credentials",
-          "name": "Supabase API"
-        }
-      }
-    },
-    {
-      "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $credentials.telegramApi.accessToken }}/sendMessage",
+        "url": "https://api.openai.com/v1/embeddings",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.openAi.apiKey }}"
+            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -177,83 +46,74 @@ FROM documents WHERE user_id = '{{ $('Prepare Chat Input').item.json.userId }}' 
         "bodyParameters": {
           "parameters": [
             {
-              "name": "chat_id",
-              "value": "={{ $('Build AI Context').item.json.chatId }}"
+              "name": "model",
+              "value": "text-embedding-ada-002"
             },
             {
-              "name": "text",
-              "value": "={{ $('Generate AI Response').item.json.message.content }}"
-            },
-            {
-              "name": "parse_mode",
-              "value": "Markdown"
+              "name": "input",
+              "value": "={{ $('Process Document (Dumpling)').item.json.text || $('Process YouTube (Dumpling)').item.json.transcript }}"
             }
           ]
         }
       },
-      "id": "send-telegram-response",
-      "name": "Send Telegram Response",
+      "id": "generate-document-embedding",
+      "name": "Generate Document Embedding",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2000, 500],
+      "position": [1400, 150],
       "credentials": {
-        "telegramApi": {
-          "id": "telegram-credentials",
-          "name": "Telegram Bot API"
+        "openAi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
         }
       }
-    }
-  ],
-  "connections": {
-    "Telegram Trigger": {
-      "main": [
-        [
-          {
-            "node": "Detect Route Type",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     },
-    "Detect Route Type": {
-      "main": [
-        [
-          {
-            "node": "Route by Type",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Route by Type": {
-      "main": [
-        [
-          {
-            "node": "Download Telegram File",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Process YouTube (Dumpling)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Prepare Chat Input",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Download Telegram File": {
-      "main": [
-        [
-          {
-            "node": "P
+    {
+      "parameters": {
+        "operation": "insert",
+        "tableId": "documents",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "artifact_id",
+              "value": "={{ $now.format('YYYYMMDD_HHmmss') + '_' + $('Detect Route Type').item.json.userId }}"
+            },
+            {
+              "column": "title",
+              "value": "={{ $('AI Classify Content').item.json.title || $('Detect Route Type').item.json.fileName || 'Untitled' }}"
+            },
+            {
+              "column": "summary",
+              "value": "={{ $('AI Classify Content').item.json.summary }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $('Process Document (Dumpling)').item.json.text || $('Process YouTube (Dumpling)').item.json.transcript }}"
+            },
+            {
+              "column": "source_url",
+              "value": "={{ $('Detect Route Type').item.json.url || '' }}"
+            },
+            {
+              "column": "source_type",
+              "value": "={{ $('Detect Route Type').item.json.routeType }}"
+            },
+            {
+              "column": "filename",
+              "value": "={{ $('Detect Route Type').item.json.fileName || 'unknown' }}"
+            },
+            {
+              "column": "classification",
+              "value": "={{ $('AI Classify Content').item.json.classification }}"
+            },
+            {
+              "column": "confidence",
+              "value": "={{ $('AI Classify Content').item.json.confidence }}"
+            },
+            {
+              "column": "rationale",
+              "value": "={{ $('AI Classify Content').item.json.rationale }}"
+            },
+            {
+              "column": "dcwf_task_ids",
+              "valu

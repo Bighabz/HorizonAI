@@ -1,202 +1,81 @@
-lace: AI will fully automate this task without human involvement\n- Augment: AI will support/accelerate but not fully automate the task  \n- Remain Human: Task will remain primarily human due to complexity, judgment, ethics\n- New Task: Emerging job duty created by AI advances\n\nScore on 0-1 scale:\n- Credibility: Source reliability and authority\n- Impact: Magnitude of potential change to workforce\n- Specificity: Level of detail and actionability\n- Confidence: Your certainty in the classification\n\nDCWF Task Mapping - identify specific DCWF/NIST task IDs mentioned or implied:\n- T0001: Acquire and manage resources for IT security\n- T0002: Acquire resources for continuity operations\n- T0419: Maintain knowledge of laws and regulations\n- T0420: Administer test beds and evaluate applications\n- T0421: Manage organizational knowledge indexing\n- And 900+ other DCWF tasks\n\nReturn JSON:\n{\n  \"classification\": \"Replace|Augment|Remain Human|New Task\",\n  \"confidence\": 0.0-1.0,\n  \"rationale\": \"Clear explanation with specific evidence\",\n  \"scores\": {\n    \"credibility\": 0.0-1.0,\n    \"impact\": 0.0-1.0,\n    \"specificity\": 0.0-1.0\n  },\n  \"dcwf_tasks\": [\"T0001\", \"T0419\"],\n  \"summary\": \"2-3 sentence summary\",\n  \"title\": \"Brief descriptive title\"\n}"
+      "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "document"
             },
             {
-              "role": "user",
-              "content": "Analyze this content for AI's impact on cybersecurity work:\n\n{{ $json.text || $json.transcript || $json.content }}"
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "chat"
             }
           ]
         },
         "options": {
-          "temperature": 0.3,
-          "responseFormat": {
-            "type": "json_object"
-          }
+          "fallbackOutput": "none"
         }
       },
-      "id": "ai-classify-content",
-      "name": "AI Classify Content",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.3,
-      "position": [1200, 150],
-      "credentials": {
-        "openAi": {
-          "id": "openai-credentials",
-          "name": "OpenAI API"
-        }
-      }
+      "id": "route-by-type",
+      "name": "Route by Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/embeddings",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ $credentials.openAi.apiKey }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "model",
-              "value": "text-embedding-ada-002"
-            },
-            {
-              "name": "input",
-              "value": "={{ $('Process Document (Dumpling)').item.json.text || $('Process YouTube (Dumpling)').item.json.transcript }}"
-            }
-          ]
-        }
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}"
       },
-      "id": "generate-document-embedding",
-      "name": "Generate Document Embedding",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1400, 150],
-      "credentials": {
-        "openAi": {
-          "id": "openai-credentials",
-          "name": "OpenAI API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "insert",
-        "tableId": "documents",
-        "columnsUi": {
-          "columnValues": [
-            {
-              "column": "artifact_id",
-              "value": "={{ $now.format('YYYYMMDD_HHmmss') + '_' + $('Detect Route Type').item.json.userId }}"
-            },
-            {
-              "column": "title",
-              "value": "={{ $('AI Classify Content').item.json.title || $('Detect Route Type').item.json.fileName || 'Untitled' }}"
-            },
-            {
-              "column": "summary",
-              "value": "={{ $('AI Classify Content').item.json.summary }}"
-            },
-            {
-              "column": "content",
-              "value": "={{ $('Process Document (Dumpling)').item.json.text || $('Process YouTube (Dumpling)').item.json.transcript }}"
-            },
-            {
-              "column": "source_url",
-              "value": "={{ $('Detect Route Type').item.json.url || '' }}"
-            },
-            {
-              "column": "source_type",
-              "value": "={{ $('Detect Route Type').item.json.routeType }}"
-            },
-            {
-              "column": "filename",
-              "value": "={{ $('Detect Route Type').item.json.fileName || 'unknown' }}"
-            },
-            {
-              "column": "classification",
-              "value": "={{ $('AI Classify Content').item.json.classification }}"
-            },
-            {
-              "column": "confidence",
-              "value": "={{ $('AI Classify Content').item.json.confidence }}"
-            },
-            {
-              "column": "rationale",
-              "value": "={{ $('AI Classify Content').item.json.rationale }}"
-            },
-            {
-              "column": "dcwf_task_ids",
-              "value": "={{ $('AI Classify Content').item.json.dcwf_tasks }}"
-            },
-            {
-              "column": "credibility_score",
-              "value": "={{ $('AI Classify Content').item.json.scores.credibility }}"
-            },
-            {
-              "column": "impact_score",
-              "value": "={{ $('AI Classify Content').item.json.scores.impact }}"
-            },
-            {
-              "column": "specificity_score",
-              "value": "={{ $('AI Classify Content').item.json.scores.specificity }}"
-            },
-            {
-              "column": "embedding",
-              "value": "={{ '[' + $json.data[0].embedding.join(',') + ']' }}"
-            },
-            {
-              "column": "user_id",
-              "value": "={{ $('Detect Route Type').item.json.userId }}"
-            },
-            {
-              "column": "chat_id",
-              "value": "={{ $('Detect Route Type').item.json.chatId }}"
-            },
-            {
-              "column": "username",
-              "value": "={{ $('Detect Route Type').item.json.username }}"
-            }
-          ]
-        }
-      },
-      "id": "store-document-supabase",
-      "name": "Store Document in Supabase",
-      "type": "n8n-nodes-base.supabase",
+      "id": "download-telegram-file",
+      "name": "Download Telegram File",
+      "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
-      "position": [1600, 150],
-      "credentials": {
-        "supabaseApi": {
-          "id": "supabase-credentials",
-          "name": "Supabase API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.telegram.org/bot{{ $credentials.telegramApi.accessToken }}/sendMessage",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "chat_id",
-              "value": "={{ $('Detect Route Type').item.json.chatId }}"
-            },
-            {
-              "name": "text",
-              "value": "📄 *Document processed successfully!*\\n\\n📌 **File:** {{ $('Detect Route Type').item.json.fileName }}\\n🏷️ **Classification:** {{ $('AI Classify Content').item.json.classification }} ({{ Math.round($('AI Classify Content').item.json.confidence * 100) }}% confidence)\\n📝 **Summary:** {{ $('AI Classify Content').item.json.summary }}\\n🎯 **DCWF Tasks:** {{ $('AI Classify Content').item.json.dcwf_tasks.join(', ') }}\\n💬 **Ask me anything about it!**"
-            },
-            {
-              "name": "parse_mode",
-              "value": "Markdown"
-            }
-          ]
-        }
-      },
-      "id": "send-document-confirmation",
-      "name": "Send Document Confirmation",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1800, 150],
+      "position": [800, 100],
       "credentials": {
         "telegramApi": {
           "id": "telegram-credentials",
@@ -206,24 +85,14 @@ lace: AI will fully automate this task without human involvement\n- Augment: AI 
     },
     {
       "parameters": {
-        "jsCode": "// Prepare chat input for RAG processing\nconst input = $json;\nconst userMessage = input.message || input.query || input.text || '';\n\nif (!userMessage) {\n  throw new Error('No message provided');\n}\n\nreturn {\n  json: {\n    userMessage: userMessage,\n    chatId: input.chatId,\n    userId: input.userId,\n    username: input.username,\n    messageId: input.messageId,\n    timestamp: input.timestamp || new Date().toISOString()\n  }\n};"
-      },
-      "id": "prepare-chat-input",
-      "name": "Prepare Chat Input",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [800, 400]
-    },
-    {
-      "parameters": {
         "method": "POST",
-        "url": "https://api.openai.com/v1/embeddings",
+        "url": "https://app.dumplingai.com/api/v1/doc-to-text",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer {{ $credentials.openAi.apiKey }}"
+              "value": "Bearer {{ $credentials.dumplingAi.apiKey }}"
             },
             {
               "name": "Content-Type",
@@ -235,29 +104,76 @@ lace: AI will fully automate this task without human involvement\n- Augment: AI 
         "bodyParameters": {
           "parameters": [
             {
-              "name": "model",
-              "value": "text-embedding-ada-002"
+              "name": "inputMethod",
+              "value": "file"
             },
             {
-              "name": "input",
-              "value": "={{ $json.userMessage }}"
+              "name": "file",
+              "value": "={{ $binary.data }}"
             }
           ]
         }
       },
-      "id": "generate-query-embedding",
-      "name": "Generate Query Embedding",
+      "id": "process-document-dumpling",
+      "name": "Process Document (Dumpling)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, 400],
+      "position": [1000, 100],
       "credentials": {
-        "openAi": {
-          "id": "openai-credentials",
-          "name": "OpenAI API"
+        "dumplingAi": {
+          "id": "dumpling-credentials",
+          "name": "Dumpling AI API"
         }
       }
     },
     {
       "parameters": {
-        "operation": "runSql",
-        "query": "SELECT *, (embedding <=> '[{{ $json.data[0].embedding.join(',') }}]'::vector) as distance 
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/get-youtube-transcript",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.dumplingAi.apiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "videoUrl",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "includeTimestamps",
+              "value": true
+            }
+          ]
+        }
+      },
+      "id": "process-youtube-dumpling",
+      "name": "Process YouTube (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 200],
+      "credentials": {
+        "dumplingAi": {
+          "id": "dumpling-credentials",
+          "name": "Dumpling AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "You are an AI Horizon Forecasting expert analyzing how AI impacts cybersecurity work based on the DCWF framework.\n\nClassify content into these categories:\n- Rep
