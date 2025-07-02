@@ -17,21 +17,31 @@ This project builds an AI-powered Retrieval-Augmented Generation (RAG) agent tha
 ├── DCWFMASTER.xlsx                    # Complete DCWF framework data (1,350+ tasks, 1,772+ KSAs)
 ├── AIHORIZON.txt                      # AI Horizon forecasting pipeline requirements  
 ├── AI_HORIZON_WORKFLOW_FIX_PROMPT.md  # Technical prompt for workflow development
-├── ai_horizon_debug_workflow.json     # Working debug workflow for testing
-├── database_schema.sql                # Essential Supabase schema with pgvector
+├── ai_horizon_main_workflow.json      # 🚧 Main workflow (needs node connection fixes)
+├── ai_horizon_debug_workflow.json     # ✅ Working debug workflow for testing
+├── supabase_complete_schema.sql       # Complete Supabase schema with all features
+├── database_schema.sql                # Essential minimal schema
 ├── README.md                          # This file
 ├── requirements.txt                   # Python dependencies
 ├── n8n_credentials_setup.md           # API credentials setup guide
 └── .gitignore                         # Git ignore rules
 ```
 
-## � Current Status: WORKFLOW NEEDS FIXING
+## 🚨 Current Status: WORKFLOW NEEDS FIXING
 
 The n8n workflow requires technical expertise to properly connect all nodes for:
 - Vector search with pgvector/Supabase
 - OpenAI embeddings and chat completions
 - Document processing with Dumpling AI OCR
 - Telegram bot integration
+
+### 📋 Available Workflows:
+- **`ai_horizon_main_workflow.json`** - Complete workflow with all features (has disconnected nodes)
+- **`ai_horizon_debug_workflow.json`** - Simple working version for testing routing
+
+### 🗄️ Database Options:
+- **`supabase_complete_schema.sql`** - Full schema with DCWF tables, analytics, reports
+- **`database_schema.sql`** - Minimal schema with just documents and chat_memory
 
 **See `AI_HORIZON_WORKFLOW_FIX_PROMPT.md` for complete technical specifications.**
 
