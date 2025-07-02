@@ -154,14 +154,29 @@
       "parameters": {
         "method": "POST",
         "url": "https://app.dumplingai.com/api/v1/get-youtube-transcript",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "videoUrl",
               "value": "={{ $json.url }}"
+            },
+            {
+              "name": "includeTimestamps",
+              "value": true
             }
           ]
         },
@@ -216,8 +231,19 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/embeddings",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -350,8 +376,19 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/embeddings",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -381,24 +418,53 @@
     },
     {
       "parameters": {
-        "operation": "select",
-        "tableId": "documents",
-        "returnAll": false,
-        "limit": 5,
-        "filterType": "string",
-        "filterString": "user_id=eq.{{ $('Switch').item.json.userId }}&order=created_at.desc"
+        "method": "POST",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/rpc/match_documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query_embedding",
+              "value": "={{ $('Embed Query').item.json.data[0].embedding }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $('Switch').item.json.userId }}"
+            },
+            {
+              "name": "match_threshold",
+              "value": "0.3"
+            },
+            {
+              "name": "match_count",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "12",
       "name": "Vector Search",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, 400],
-      "credentials": {
-        "supabaseApi": {
-          "id": "4",
-          "name": "Supabase"
-        }
-      }
+      "position": [1000, 400]
     },
     {
       "parameters": {
