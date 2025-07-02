@@ -351,7 +351,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $credentials.supabaseApi.url }}/rest/v1/rpc/match_documents",
+        "url": "https://hdevbjifbhxcacpjxstr.supabase.co/rest/v1/rpc/match_documents",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -359,11 +359,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $credentials.supabaseApi.serviceKey }}"
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
             },
             {
               "name": "Authorization",
-              "value": "Bearer {{ $credentials.supabaseApi.serviceKey }}"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkZXZiamlmYmh4Y2FjcGp4c3RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDAzNTg5OSwiZXhwIjoyMDY1NjExODk5fQ.hC2mkt8gFtz9tDfIEO73eVrZuQTXs98WDvL2n-3ln1o"
             },
             {
               "name": "Content-Type",
