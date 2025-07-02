@@ -1,0 +1,377 @@
+{
+  "name": "AI Horizon RAG Agent - Debug Version",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "document",
+          "edited_message"
+        ],
+        "additionalFields": {
+          "download": false
+        }
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "webhookId": "telegram-bot-horizon",
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Route Detection with Extensive Debugging\nconst update = $json;\nlet routeType = 'unknown';\nlet data = {};\n\nconsole.log('=== ROUTE DETECTION DEBUG ===');\nconsole.log('Full update object:', JSON.stringify(update, null, 2));\n\n// IMPORTANT: Skip bot messages to prevent loops\nif (update.message && update.message.from && update.message.from.is_bot) {\n  console.log('SKIPPING: Bot message detected');\n  return {\n    json: {\n      routeType: 'skip',\n      reason: 'Bot message ignored to prevent loop',\n      debug: 'Bot message filtered out'\n    }\n  };\n}\n\n// Handle Telegram messages\nif (update.message) {\n  console.log('Message found:', update.message);\n  \n  // Check for commands first\n  if (update.message.text && update.message.text.startsWith('/')) {\n    const command = update.message.text.split(' ')[0].toLowerCase();\n    console.log('Command detected:', command);\n    \n    if (command === '/stats') {\n      routeType = 'stats';\n      data = {\n        routeType: 'stats',\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        debug: 'Stats command route'\n      };\n    } else if (command === '/export') {\n      routeType = 'export';\n      data = {\n        routeType: 'export',\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        debug: 'Export command route'\n      };\n    }\n  }\n  // Check for document attachment\n  else if (update.message.document) {\n    const doc = update.message.document;\n    console.log('Document detected:', doc);\n    routeType = 'document';\n    data = {\n      routeType: 'document',\n      fileId: doc.file_id,\n      fileName: doc.file_name || 'unknown',\n      mimeType: doc.mime_type || 'application/octet-stream',\n      fileSize: doc.file_size,\n      chatId: update.message.chat.id,\n      userId: update.message.from.id,\n      username: update.message.from.username || update.message.from.first_name,\n      messageId: update.message.message_id,\n      source: 'telegram',\n      debug: 'Document upload route'\n    };\n  } \n  // Check for text messages\n  else if (update.message.text) {\n    const text = update.message.text;\n    console.log('Text message detected:', text);\n    \n    const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n    const urls = text.match(urlRegex);\n    \n    if (urls && urls.length > 0) {\n      const url = urls[0];\n      console.log('URL detected in text:', url);\n      \n      if (url.includes('youtube.com') || url.includes('youtu.be')) {\n        routeType = 'youtube';\n        data = {\n          routeType: 'youtube',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id,\n          debug: 'YouTube URL route'\n        };\n      } else if (url.includes('tiktok.com')) {\n        routeType = 'tiktok';\n        data = {\n          routeType: 'tiktok',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id,\n          debug: 'TikTok URL route'\n        };\n      } else {\n        routeType = 'url';\n        data = {\n          routeType: 'url',\n          url: url,\n          chatId: update.message.chat.id,\n          userId: update.message.from.id,\n          username: update.message.from.username || update.message.from.first_name,\n          messageId: update.message.message_id,\n          debug: 'Generic URL route'\n        };\n      }\n    } else {\n      // Regular chat message - RAG query\n      console.log('Regular chat message detected - routing to CHAT');\n      routeType = 'chat';\n      data = {\n        routeType: 'chat',\n        message: text,\n        query: text,\n        text: text,\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        timestamp: new Date().toISOString(),\n        debug: 'Chat message route - should go to RAG processing'\n      };\n    }\n  }\n  else {\n    console.log('Message type not recognized');\n    routeType = 'unknown';\n    data = {\n      routeType: 'unknown',\n      debug: 'Message type not recognized',\n      messageData: update.message\n    };\n  }\n} else {\n  console.log('No message found in update');\n  routeType = 'unknown';\n  data = {\n    routeType: 'unknown',\n    debug: 'No message found in update',\n    updateData: update\n  };\n}\n\nconsole.log('FINAL ROUTE DECISION:', routeType);\nconsole.log('FINAL DATA:', JSON.stringify(data, null, 2));\n\nreturn {\n  json: data\n};"
+      },
+      "id": "detect-route-type",
+      "name": "Detect Route Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Debug Switch Input\nconst input = $json;\nconsole.log('=== SWITCH INPUT DEBUG ===');\nconsole.log('Input to switch:', JSON.stringify(input, null, 2));\nconsole.log('routeType value:', input.routeType);\nconsole.log('routeType type:', typeof input.routeType);\n\n// Pass through the data unchanged\nreturn { json: input };"
+      },
+      "id": "debug-switch-input",
+      "name": "Debug Switch Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "caseSensitive": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "caseSensitive": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeType }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "caseSensitive": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "chat"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "route-by-type",
+      "name": "Route by Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Debug Document Route\nconst input = $json;\nconsole.log('=== DOCUMENT ROUTE DEBUG ===');\nconsole.log('Reached document route with data:', JSON.stringify(input, null, 2));\nreturn { json: input };"
+      },
+      "id": "debug-document-route",
+      "name": "Debug Document Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Debug YouTube Route\nconst input = $json;\nconsole.log('=== YOUTUBE ROUTE DEBUG ===');\nconsole.log('Reached YouTube route with data:', JSON.stringify(input, null, 2));\nreturn { json: input };"
+      },
+      "id": "debug-youtube-route",
+      "name": "Debug YouTube Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Debug Chat Route\nconst input = $json;\nconsole.log('=== CHAT ROUTE DEBUG ===');\nconsole.log('Reached CHAT route with data:', JSON.stringify(input, null, 2));\n\n// Send immediate response to confirm chat route is working\nconst response = {\n  chatId: input.chatId,\n  userId: input.userId,\n  message: input.message || input.text,\n  debug: 'SUCCESS: Chat route is working correctly!',\n  routeType: input.routeType\n};\n\nconsole.log('Chat route processing successful:', response);\nreturn { json: response };"
+      },
+      "id": "debug-chat-route",
+      "name": "Debug Chat Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot7799820694:AAHiGF8k3SiVfcy8_o2xqac7JkwqOmj3y2s/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "🎉 **SUCCESS!** Chat route is working!\\n\\n📝 **Your message:** {{ $json.message }}\\n🔄 **Route Type:** {{ $json.routeType }}\\n🐛 **Debug:** {{ $json.debug }}\\n\\n✅ The routing issue has been fixed!"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      },
+      "id": "send-chat-success",
+      "name": "Send Chat Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot7799820694:AAHiGF8k3SiVfcy8_o2xqac7JkwqOmj3y2s/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "📄 **Document Route Triggered**\\n\\n🔄 **Route Type:** {{ $json.routeType }}\\n🐛 **Debug:** {{ $json.debug }}\\n\\n⚠️ If this was a chat message, there's still a routing issue."
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      },
+      "id": "send-document-debug",
+      "name": "Send Document Debug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot7799820694:AAHiGF8k3SiVfcy8_o2xqac7JkwqOmj3y2s/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "📺 **YouTube Route Triggered**\\n\\n🔄 **Route Type:** {{ $json.routeType }}\\n🐛 **Debug:** {{ $json.debug }}\\n\\n⚠️ If this was a chat message, there's still a routing issue."
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        }
+      },
+      "id": "send-youtube-debug",
+      "name": "Send YouTube Debug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 200]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Detect Route Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Route Type": {
+      "main": [
+        [
+          {
+            "node": "Debug Switch Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Switch Input": {
+      "main": [
+        [
+          {
+            "node": "Route by Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Type": {
+      "main": [
+        [
+          {
+            "node": "Debug Document Route",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Debug YouTube Route",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Debug Chat Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Document Route": {
+      "main": [
+        [
+          {
+            "node": "Send Document Debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug YouTube Route": {
+      "main": [
+        [
+          {
+            "node": "Send YouTube Debug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Chat Route": {
+      "main": [
+        [
+          {
+            "node": "Send Chat Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-12-19T12:00:00.000Z",
+  "versionId": "ai-horizon-debug-v1.0"
+}
