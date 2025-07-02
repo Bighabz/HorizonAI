@@ -350,14 +350,53 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT * FROM match_documents($1, $2, 0.3, 5)",
-        "options": {}
+        "method": "POST",
+        "url": "={{ $credentials.supabaseApi.url }}/rest/v1/rpc/match_documents",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $credentials.supabaseApi.serviceKey }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.supabaseApi.serviceKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query_embedding",
+              "value": "={{ $('Embed Query').item.json.data[0].embedding }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $('Switch').item.json.userId }}"
+            },
+            {
+              "name": "match_threshold",
+              "value": "0.3"
+            },
+            {
+              "name": "match_count",
+              "value": "5"
+            }
+          ]
+        }
       },
       "id": "12",
       "name": "Vector Search",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [1000, 400],
       "credentials": {
         "supabaseApi": {
@@ -369,10 +408,11 @@
     {
       "parameters": {
         "operation": "getAll",
-        "table": "chat_memory",
+        "tableId": "chat_memory",
         "returnAll": false,
         "limit": 5,
-        "filters": {}
+        "filterType": "string",
+        "filterString": "user_id=eq.{{ $('Switch').item.json.userId }}&chat_id=eq.{{ $('Switch').item.json.chatId }}&order=created_at.desc"
       },
       "id": "13",
       "name": "Get History",
