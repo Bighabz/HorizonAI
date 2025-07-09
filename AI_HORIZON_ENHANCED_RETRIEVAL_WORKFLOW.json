@@ -78,27 +78,6 @@
             },
             {
               "conditions": {
-                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "export", "operator": {"type": "string", "operation": "equals"}}]
-              },
-              "renameOutput": true,
-              "outputKey": "export"
-            },
-            {
-              "conditions": {
-                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "url", "operator": {"type": "string", "operation": "equals"}}]
-              },
-              "renameOutput": true,
-              "outputKey": "url"
-            },
-            {
-              "conditions": {
-                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "stats", "operator": {"type": "string", "operation": "equals"}}]
-              },
-              "renameOutput": true,
-              "outputKey": "stats"
-            },
-            {
-              "conditions": {
                 "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "dcwf_command", "operator": {"type": "string", "operation": "equals"}}]
               },
                             "renameOutput": true,
@@ -525,7 +504,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [-1240, 1260],
-      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}},
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -748,9 +728,6 @@
         [{"node": "Prepare Enhanced Chat Input", "type": "main", "index": 0}],
         [{"node": "Get YouTube Transcript", "type": "main", "index": 0}],
         [{"node": "Get TikTok Transcript", "type": "main", "index": 0}],
-        [],
-        [],
-        [],
         [{"node": "Load DCWF Tasks", "type": "main", "index": 0}]
       ]
     },
@@ -789,8 +766,14 @@
       {"node": "Prepare Document Search", "type": "main", "index": 0}
     ]]},
     "Get Chat Memory": {"main": [[{"node": "Merge Chat Data", "type": "main", "index": 0}]]},
-    "Prepare Document Search": {"main": [[{"node": "Vector Search Documents", "type": "main", "index": 0}]]},
-    "Vector Search Documents": {"main": [[{"node": "Merge Chat Data", "type": "main", "index": 1}]]},
+    "Prepare Document Search": {"main": [[
+      {"node": "Vector Search Documents", "type": "main", "index": 0},
+      {"node": "Enhanced Document Search", "type": "main", "index": 0}
+    ]]},
+    "Vector Search Documents": {"main": [[
+      {"node": "Merge Chat Data", "type": "main", "index": 1},
+      {"node": "Enhanced Document Search", "type": "main", "index": 0}
+    ]]},
     "Enhanced Document Search": {"main": [[{"node": "Merge Chat Data", "type": "main", "index": 1}]]},
     "Merge Chat Data": {"main": [[{"node": "Build Enhanced AI Context", "type": "main", "index": 0}]]},
     "Build Enhanced AI Context": {"main": [[{"node": "Call OpenAI Chat", "type": "main", "index": 0}]]},
