@@ -1,0 +1,817 @@
+{
+  "name": "AI Horizon Enhanced RAG with Advanced Retrieval",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "edited_message"],
+        "additionalFields": {"download": false}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [-2140, 900],
+      "webhookId": "telegram-bot-horizon",
+      "credentials": {"telegramApi": {"id": "AxkZ01LKYRFoDdI5", "name": "research bot"}}
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "horizon-document-upload",
+        "responseMode": "responseNode"
+      },
+      "id": "external-webhook",
+      "name": "External Document Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [-2140, 700],
+      "webhookId": "external-doc-upload"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Route Detection with DCWF Priority\nconst update = $json;\nlet routeType = 'unknown';\nlet data = {};\n\n// Skip bot messages\nif (update.message?.from?.is_bot) {\n  return { json: { routeType: 'skip', reason: 'Bot message ignored' } };\n}\n\n// Check external webhook\nif (update.headers && update.headers['x-source'] === 'external-upload') {\n  const doc = update.body?.document || {};\n  routeType = 'document';\n  data = {\n    routeType: 'document',\n    fileId: doc.fileId,\n    fileName: doc.fileName || 'unknown',\n    mimeType: doc.mimeType || 'application/octet-stream',\n    fileSize: doc.fileSize,\n    fileUrl: doc.url,\n    fileContent: doc.content,\n    chatId: update.body.chatId || 'external',\n    userId: update.body.userId || 'external-user',\n    username: update.body.username || 'External User',\n    messageId: update.body.messageId,\n    source: 'external',\n    uploadTimestamp: new Date().toISOString()\n  };\n}\n// Handle Telegram messages\nelse if (update.message) {\n  // Check if it's a command\n  if (update.message.text?.startsWith('/')) {\n    const command = update.message.text.split(' ')[0].toLowerCase();\n    if (command === '/dcwf') {\n      routeType = 'dcwf_command';\n    } else if (command === '/export') {\n      routeType = 'export';\n    } else if (command === '/stats') {\n      routeType = 'stats';\n    } else {\n      routeType = command.substring(1);\n    }\n    data = {\n      routeType: routeType,\n      command: command,\n      text: update.message.text,\n      chatId: update.message.chat.id,\n      userId: update.message.from.id,\n      username: update.message.from.username || update.message.from.first_name,\n      messageId: update.message.message_id\n    };\n  }\n  // Check if it's a document\n  else if (update.message.document) {\n    const doc = update.message.document;\n    const fileName = doc.file_name?.toLowerCase() || '';\n    \n    // Enhanced DCWF detection\n    const isDCWFUpload = fileName.includes('dcwf') || \n                        fileName.includes('task') ||\n                        fileName.includes('nist') ||\n                        fileName.includes('cybersecurity') ||\n                        fileName.includes('framework');\n    \n    routeType = isDCWFUpload ? 'dcwf_upload' : 'document';\n    data = {\n      routeType: routeType,\n      fileId: doc.file_id,\n      fileName: doc.file_name,\n      mimeType: doc.mime_type,\n      fileSize: doc.file_size,\n      chatId: update.message.chat.id,\n      userId: update.message.from.id,\n      username: update.message.from.username || update.message.from.first_name,\n      messageId: update.message.message_id,\n      source: 'telegram',\n      priority: isDCWFUpload ? 'high' : 'normal',\n      uploadTimestamp: new Date().toISOString()\n    };\n  }\n  // Check if it's a URL\n  else if (update.message.text) {\n    const text = update.message.text;\n    const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n    const urls = text.match(urlRegex);\n    \n    if (urls && urls.length > 0) {\n      const url = urls[0];\n      if (url.includes('youtube.com') || url.includes('youtu.be')) {\n        routeType = 'youtube';\n      } else if (url.includes('tiktok.com')) {\n        routeType = 'tiktok';\n      } else {\n        routeType = 'url';\n      }\n      data = {\n        routeType: routeType,\n        url: url,\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        uploadTimestamp: new Date().toISOString()\n      };\n    } else {\n      // Check for greetings first\n      const greetingPatterns = [\n        /^(hi|hello|hey|howdy|greetings|good morning|good afternoon|good evening|sup|what's up|yo)$/i,\n        /^(hi there|hello there|hey there|good day|howdy partner|what's good|what's happening)$/i,\n        /^(hiya|hola|bonjour|guten tag|ciao|salut|namaste|shalom|konnichiwa|hoi|aloha)$/i,\n        /^(morning|afternoon|evening|night)$/i,\n        /^(👋|🙋|🙋‍♂️|🙋‍♀️|👋🏻|👋🏼|👋🏽|👋🏾|👋🏿)$/,\n        /^(🖐️|✋|🤚|🫱|🫲)$/\n      ];\n      \n      const isGreeting = greetingPatterns.some(pattern => pattern.test(text.trim()));\n      \n      // Both greetings and regular messages go to chat route for RAG processing\n      routeType = 'chat';\n      data = {\n        routeType: 'chat',\n        message: text,\n        query: text,\n        text: text,\n        chatId: update.message.chat.id,\n        userId: update.message.from.id,\n        username: update.message.from.username || update.message.from.first_name,\n        messageId: update.message.message_id,\n        timestamp: new Date().toISOString(),\n        isGreeting: isGreeting // Flag to indicate this is a greeting for special handling\n      };\n    }\n  }\n}\n\nreturn { json: data };"
+      },
+      "id": "route-detector",
+      "name": "Detect Route Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1920, 800]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "dcwf_upload", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "dcwf_upload"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "document", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "document"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "chat", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "chat"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "youtube", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "tiktok", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "tiktok"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "export", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "export"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "url", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "url"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "stats", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "stats"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $json.routeType }}", "rightValue": "dcwf_command", "operator": {"type": "string", "operation": "equals"}}]
+              },
+                            "renameOutput": true,
+              "outputKey": "dcwf_command"
+            }
+          ]
+        },
+        "options": {"fallbackOutput": "none"}
+      },
+      "id": "route-by-type",
+      "name": "Route by Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [-1700, 700]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "dcwf_tasks",
+        "limit": 1000,
+        "returnAll": true
+      },
+      "id": "load-dcwf-tasks",
+      "name": "Load DCWF Tasks",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-1480, 100],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process DCWF tasks for workflow use\nconst tasks = $('Load DCWF Tasks').all().map(item => item.json);\n\nconsole.log(`🎯 Processing ${tasks.length} DCWF tasks`);\n\n// Store in workflow variables\nworkflow.variables = workflow.variables || {};\nworkflow.variables.dcwfTaskList = {\n  tasks: tasks,\n  totalTasks: tasks.length,\n  loadedAt: new Date().toISOString(),\n  taskMap: tasks.reduce((map, task) => {\n    map[task.task_id] = task;\n    if (task.nist_sp_id) map[task.nist_sp_id] = task;\n    return map;\n  }, {})\n};\n\nreturn {\n  json: {\n    message: `✅ Loaded ${tasks.length} DCWF tasks into workflow memory`,\n    totalTasks: tasks.length,\n    sampleTasks: tasks.slice(0, 5).map(t => `${t.task_id}: ${t.task_name}`),\n    readyForClassification: true\n  }\n};"
+      },
+      "id": "process-dcwf-tasks",
+      "name": "Process DCWF Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1260, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle document source and prepare for processing\nconst data = $json;\n\nif (data.source === 'external') {\n  // External document - already has URL or content\n  return {\n    json: {\n      ...data,\n      binary: data.fileContent ? {\n        data: {\n          data: data.fileContent,\n          mimeType: data.mimeType,\n          fileName: data.fileName\n        }\n      } : null\n    }\n  };\n} else {\n  // Telegram document - needs download\n  return { json: data };\n}"
+      },
+      "id": "doc-source-handler",
+      "name": "Document Source Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1260, -60]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}"
+      },
+      "id": "download-telegram",
+      "name": "Download Telegram File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [-800, 200],
+      "credentials": {"telegramApi": {"id": "AxkZ01LKYRFoDdI5", "name": "research bot"}},
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $('Document Source Handler').item.json.mimeType }}", "rightValue": "application/pdf", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "pdf"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $('Document Source Handler').item.json.mimeType }}", "rightValue": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "docx"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $('Document Source Handler').item.json.mimeType }}", "rightValue": "text/csv", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "csv"
+            },
+            {
+              "conditions": {
+                "conditions": [{"leftValue": "={{ $('Document Source Handler').item.json.mimeType }}", "rightValue": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "operator": {"type": "string", "operation": "equals"}}]
+              },
+              "renameOutput": true,
+              "outputKey": "xlsx"
+            }
+          ]
+        },
+        "options": {"fallbackOutput": "extra"}
+      },
+      "id": "route-doc-type",
+      "name": "Route Document Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [-580, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/extract-document",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Authorization", "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"inputMethod\": \"base64\",\n  \"files\": [($('Document Source Handler').item.binary?.data?.data || $('Download Telegram File').item.binary?.data?.data)],\n  \"prompt\": \"Extract all text content from this PDF document. Return the complete text preserving the structure and formatting.\",\n  \"jsonMode\": false\n} }}",
+        "options": {"timeout": 60000}
+      },
+      "id": "extract-pdf",
+      "name": "Extract PDF (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-140, -360],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/extract-document",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Authorization", "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"inputMethod\": \"base64\",\n  \"files\": [($('Document Source Handler').item.binary?.data?.data || $('Download Telegram File').item.binary?.data?.data)],\n  \"prompt\": \"Extract all text content from this DOCX document. Return the complete text preserving the structure and formatting.\",\n  \"jsonMode\": false\n} }}",
+        "options": {"timeout": 60000}
+      },
+      "id": "extract-docx",
+      "name": "Extract DOCX (Dumpling)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-140, -160],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "options": {"headerRow": true, "includeEmptyCells": false}
+      },
+      "id": "extract-csv",
+      "name": "Extract CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [-360, 60]
+    },
+    {
+      "parameters": {
+        "options": {"headerRow": true, "includeEmptyCells": false}
+      },
+      "id": "extract-xlsx",
+      "name": "Extract XLSX",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [-360, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/extract-video",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Authorization", "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"inputMethod\": \"url\",\n  \"video\": $json.url,\n  \"prompt\": \"Extract the complete transcript from this YouTube video. Include all spoken words and maintain the natural flow of speech.\",\n  \"jsonMode\": false\n} }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "extract-youtube",
+      "name": "Get YouTube Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-140, 400],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.dumplingai.com/api/v1/extract-video",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Authorization", "value": "Bearer sk_wHUE8kEVOvO8InedX5K9MjHxlB6Ws02mPSBBQvPnaH5Nss8q"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"inputMethod\": \"url\",\n  \"video\": $json.url,\n  \"prompt\": \"Extract the complete transcript from this TikTok video. Include all spoken words and maintain the natural flow of speech.\",\n  \"jsonMode\": false\n} }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "extract-tiktok",
+      "name": "Get TikTok Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-140, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process CSV/XLSX data for normalization\nconst data = $json;\nconst allRows = [];\n\nObject.keys(data).forEach(sheetName => {\n  const sheet = data[sheetName];\n  if (Array.isArray(sheet)) {\n    sheet.forEach((row, index) => {\n      allRows.push({\n        ...row,\n        _sheet: sheetName,\n        _rowIndex: index\n      });\n    });\n  }\n});\n\nconst headers = allRows.length > 0 ? Object.keys(allRows[0]).filter(k => !k.startsWith('_')) : [];\nlet textContent = `Spreadsheet Data with ${allRows.length} rows and ${headers.length} columns\\n\\n`;\ntextContent += `Headers: ${headers.join(', ')}\\n\\n`;\n\nif (allRows.length > 100) {\n  textContent += `Data Summary:\\n`;\n  textContent += `- Total rows: ${allRows.length}\\n`;\n  textContent += `- Sample data (first 10 rows):\\n`;\n  textContent += JSON.stringify(allRows.slice(0, 10), null, 2);\n} else {\n  textContent += `Full Data:\\n`;\n  textContent += JSON.stringify(allRows, null, 2);\n}\n\nconst metadata = $('Document Source Handler').item.json;\n\nreturn {\n  json: {\n    text: textContent,\n    content: textContent,\n    source_type: metadata.mimeType?.includes('csv') ? 'csv' : 'xlsx',\n    filename: metadata.fileName,\n    chatId: metadata.chatId,\n    userId: metadata.userId,\n    username: metadata.username,\n    metadata: {\n      rowCount: allRows.length,\n      columnCount: headers.length,\n      headers: headers\n    }\n  }\n};"
+      },
+      "id": "process-spreadsheet",
+      "name": "Process Spreadsheet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-140, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Content Normalization with explicit error handling\ntry {\n  console.log('Starting content normalization...');\n  \n  const sources = [\n    { node: 'Extract PDF (Dumpling)', type: 'pdf' },\n    { node: 'Extract DOCX (Dumpling)', type: 'docx' },\n    { node: 'Process Spreadsheet', type: 'spreadsheet' },\n    { node: 'Get YouTube Transcript', type: 'youtube' },\n    { node: 'Get TikTok Transcript', type: 'tiktok' }\n  ];\n  \n  let content = '';\n  let sourceType = '';\n  let metadata = {};\n  let errorMessages = [];\n  \n  // Get route data\n  let routeData = {};\n  try {\n    routeData = $('Detect Route Type').item.json;\n  } catch (e) {\n    console.log('Route data not available');\n  }\n  \n  // Also check Document Source Handler\n  try {\n    const docHandler = $('Document Source Handler');\n    if (docHandler && docHandler.item && docHandler.item.json) {\n      routeData = { ...routeData, ...docHandler.item.json };\n    }\n  } catch (e) {\n    console.log('Document Source Handler data not available');\n  }\n  \n  // Try each source\n  for (const source of sources) {\n    try {\n      const nodeData = $(source.node).item;\n      if (!nodeData || !nodeData.json) continue;\n      \n      const data = nodeData.json;\n      console.log(`${source.type} response:`, JSON.stringify(data).substring(0, 500));\n      \n      // Check for errors\n      if (data.error || (data.statusCode && data.statusCode >= 400)) {\n        errorMessages.push(`${source.type}: ${data.error?.message || data.message || 'Request failed'}`);\n        continue;\n      }\n      \n      // Handle Dumpling API response\n      if (data.results) {\n        content = data.results;\n        sourceType = source.type;\n        console.log(`Found Dumpling content from ${source.type}: ${content.length} characters`);\n      }\n      // Handle spreadsheet data\n      else if (source.type === 'spreadsheet' && (data.text || data.content)) {\n        content = data.text || data.content;\n        sourceType = data.source_type || 'spreadsheet';\n        metadata = data.metadata || {};\n      }\n      // Other formats\n      else {\n        const textFields = ['text', 'content', 'transcript', 'extracted_text', 'body', 'output', 'result', 'data'];\n        for (const field of textFields) {\n          if (data[field] && typeof data[field] === 'string') {\n            content = data[field];\n            sourceType = source.type;\n            break;\n          }\n        }\n      }\n      \n      if (content) {\n        metadata = {\n          filename: routeData.fileName || data.filename || 'unknown',\n          source_url: routeData.url || data.url || null,\n          chatId: routeData.chatId || null,\n          userId: routeData.userId || null,\n          username: routeData.username || null,\n          extracted_at: new Date().toISOString(),\n          uploadTimestamp: routeData.uploadTimestamp || new Date().toISOString(),\n          ...metadata,\n          ...(data.metadata || {})\n        };\n        break;\n      }\n    } catch (e) {\n      console.log(`Error processing ${source.type}:`, e.message);\n      errorMessages.push(`${source.type}: ${e.message}`);\n    }\n  }\n  \n  // If no content found, provide error\n  if (!content) {\n    const errorDetail = errorMessages.length > 0 \n      ? `Errors encountered:\\n${errorMessages.join('\\n')}`\n      : 'No content could be extracted from any source.';\n      \n    throw new Error(`Content extraction failed. ${errorDetail}`);\n  }\n  \n  // Ensure content is string\n  if (typeof content !== 'string') {\n    content = JSON.stringify(content);\n  }\n  \n  return {\n    json: {\n      content,\n      source_type: sourceType,\n      filename: metadata.filename,\n      source_url: metadata.source_url,\n      metadata,\n      content_length: content.length,\n      processing_timestamp: new Date().toISOString(),\n      uploadTimestamp: metadata.uploadTimestamp\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      content: '',\n      source_type: 'error',\n      error: true,\n      error_message: error.message,\n      processing_timestamp: new Date().toISOString(),\n      metadata: { chatId: null, userId: null, username: null }\n    }\n  };\n}"
+      },
+      "id": "normalize-content",
+      "name": "Normalize Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [80, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Semantic Chunking with DCWF awareness\nfunction semanticChunk(text, maxChunkSize = 1500, overlap = 200) {\n  const sentences = text.match(/[^.!?]+[.!?]+/g) || [];\n  const chunks = [];\n  let currentChunk = '';\n  \n  for (const sentence of sentences) {\n    if ((currentChunk + sentence).length > maxChunkSize) {\n      chunks.push(currentChunk.trim());\n      const overlapText = currentChunk.split(' ').slice(-20).join(' ');\n      currentChunk = overlapText + ' ' + sentence;\n    } else {\n      currentChunk += ' ' + sentence;\n    }\n  }\n  \n  if (currentChunk) chunks.push(currentChunk.trim());\n  \n  return chunks.map((chunk, index) => ({\n    content: chunk,\n    chunk_index: index,\n    total_chunks: chunks.length,\n    metadata: {\n      chunking_strategy: 'semantic_with_overlap',\n      chunk_size: chunk.length\n    }\n  }));\n}\n\nconst data = $json;\nconst content = data.content || '';\n\nif (!content || content.length === 0) {\n  return [{\n    json: {\n      text: '',\n      chunk_index: 0,\n      total_chunks: 1,\n      chunk_size: 0,\n      error: 'No content to chunk',\n      ...data\n    }\n  }];\n}\n\nconst semanticChunks = semanticChunk(content);\n\nconst chunks = semanticChunks.map(chunk => ({\n  json: {\n    text: chunk.content,\n    content: chunk.content,\n    chunk_index: chunk.chunk_index,\n    total_chunks: chunk.total_chunks,\n    chunk_size: chunk.metadata.chunk_size,\n    source_type: data.source_type,\n    filename: data.filename,\n    source_url: data.source_url,\n    metadata: { ...data.metadata, ...chunk.metadata },\n    original_length: content.length,\n    uploadTimestamp: data.uploadTimestamp\n  }\n}));\n\nconsole.log(`Created ${chunks.length} semantic chunks`);\nreturn chunks;"
+      },
+      "id": "chunk-text",
+      "name": "Chunk Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer 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"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an AI classifier for Project Horizon with access to ${workflow.variables?.dcwfTaskList?.totalTasks || 0} DCWF cybersecurity tasks. Analyze text and classify its impact on cybersecurity tasks:\\n- Replace: AI will fully automate this task\\n- Augment: AI will assist but not replace human involvement\\n- Remain Human: Task will remain primarily human-driven\\n- New Task: This represents a new task created by AI advancement\\n\\nDCWF Task Mapping - identify specific DCWF/NIST task IDs mentioned or implied in the content. Use your knowledge of the ${workflow.variables?.dcwfTaskList?.totalTasks || 0} loaded tasks to find relevant matches.\\n\\nRespond with JSON only: {\\\"classification\\\": \\\"category\\\", \\\"confidence\\\": 0.0-1.0, \\\"rationale\\\": \\\"explanation\\\", \\\"scores\\\": {\\\"impact\\\": 0.0-1.0, \\\"specificity\\\": 0.0-1.0, \\\"credibility\\\": 0.0-1.0}, \\\"dcwf_tasks\\\": [], \\\"work_roles\\\": []}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": `Analyze this text for cybersecurity AI impact:\\n\\n${$json.text}\\n\\nSource: ${$json.source_url || $json.filename}`\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 500,\n  \"response_format\": { \"type\": \"json_object\" }\n} }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "ai-classification",
+      "name": "AI Classification with DCWF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [520, 360],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Metadata Enrichment with upload tracking and improved summaries\nconst chunk = $json;\nconst timestamp = new Date().toISOString();\nconst artifactId = `artifact_${Date.now()}_${chunk.chunk_index || 0}_${Math.random().toString(36).substr(2, 9)}`;\n\n// Track upload order for \"last document\" queries\nconst uploadOrder = Date.now();\nconst uploadTimestamp = chunk.uploadTimestamp || timestamp;\n\n// Get AI classification\nlet aiResponse = '{}';\ntry {\n  const aiNode = $('AI Classification with DCWF');\n  if (aiNode && aiNode.item && aiNode.item.json) {\n    aiResponse = aiNode.item.json.choices?.[0]?.message?.content || '{}';\n  }\n} catch (e) {\n  console.log('AI Classification not available');\n}\n\nlet classification = {};\ntry {\n  classification = JSON.parse(aiResponse);\n  const validClassifications = ['Replace', 'Augment', 'Remain Human', 'New Task'];\n  if (!validClassifications.includes(classification.classification)) {\n    classification.classification = 'Unknown';\n  }\n} catch (error) {\n  classification = {\n    classification: 'Unknown',\n    confidence: 0,\n    rationale: 'Classification failed',\n    scores: { impact: 0, specificity: 0, credibility: 0 },\n    dcwf_tasks: [],\n    work_roles: []\n  };\n}\n\n// Map DCWF tasks if available\nconst dcwfTaskList = workflow.variables?.dcwfTaskList;\nconst mappedTasks = [];\n\nif (dcwfTaskList && classification.dcwf_tasks) {\n  classification.dcwf_tasks.forEach(taskId => {\n    const task = dcwfTaskList.taskMap?.[taskId];\n    if (task) {\n      mappedTasks.push({\n        task_id: task.task_id,\n        nist_sp_id: task.nist_sp_id,\n        task_name: task.task_name,\n        task_description: task.task_description?.substring(0, 200)\n      });\n    }\n  });\n}\n\n// Auto-categorization based on content\nconst contentLower = chunk.text?.toLowerCase() || '';\nlet category = 'General';\n\nif (contentLower.includes('threat') || contentLower.includes('attack') || contentLower.includes('vulnerability')) {\n  category = 'Threat Intelligence';\n} else if (contentLower.includes('incident') || contentLower.includes('response') || contentLower.includes('forensic')) {\n  category = 'Incident Response';\n} else if (contentLower.includes('compliance') || contentLower.includes('policy') || contentLower.includes('governance')) {\n  category = 'Governance & Compliance';\n} else if (contentLower.includes('security operations') || contentLower.includes('soc') || contentLower.includes('monitoring')) {\n  category = 'Security Operations';\n} else if (contentLower.includes('identity') || contentLower.includes('access') || contentLower.includes('authentication')) {\n  category = 'Identity & Access';\n}\n\n// Generate enhanced title\nconst metadata = chunk.metadata || {};\nlet title = '';\nif (metadata.filename && metadata.filename !== 'unknown') {\n  title = metadata.filename\n    .replace(/\\.(pdf|docx|txt|csv|xlsx)$/i, '')\n    .replace(/_/g, ' ')\n    .replace(/\\b\\w/g, l => l.toUpperCase());\n} else if (chunk.source_url) {\n  // Extract title from URL\n  const urlParts = chunk.source_url.split('/');\n  title = urlParts[urlParts.length - 1] || 'Web Content';\n} else if (chunk.text) {\n  const firstLine = chunk.text.split('\\n').find(line => line.trim().length > 10);\n  title = firstLine ? firstLine.substring(0, 100) : 'Untitled Document';\n}\n\n// Generate enhanced summary\nlet summary = '';\n\n// Add source type context\nif (chunk.source_type === 'youtube' || chunk.source_type === 'tiktok') {\n  summary += `Video transcript from ${chunk.source_type}. `;\n} else if (chunk.source_type === 'csv' || chunk.source_type === 'xlsx') {\n  summary += `Spreadsheet data analysis. `;\n}\n\n// Add classification context\nif (classification.classification !== 'Unknown') {\n  summary += `This document outlines how artificial intelligence will ${classification.classification.toLowerCase()} cybersecurity tasks`;\n  if (classification.classification === 'Replace') {\n    summary += ', indicating full automation potential';\n  } else if (classification.classification === 'Augment') {\n    summary += ', indicating significant automation potential but emphasizing that human oversight will remain necessary';\n  } else if (classification.classification === 'Remain Human') {\n    summary += ', indicating tasks will remain primarily human-driven';\n  } else if (classification.classification === 'New Task') {\n    summary += ', representing new capabilities created by AI advancement';\n  }\n  summary += `. `;\n}\n\n// Add rationale if available\nif (classification.rationale && classification.rationale !== 'No rationale provided') {\n  summary += classification.rationale + ' ';\n}\n\n// Add content preview\nconst preview = chunk.text?.replace(/\\s+/g, ' ').trim().substring(0, 150) || '';\nif (preview) {\n  summary += `Content preview: \"${preview}...\"`;\n}\n\n// Return enriched metadata\nreturn {\n  json: {\n    artifact_id: artifactId,\n    title: title || 'Untitled Document',\n    summary: summary || 'No summary available',\n    content: chunk.text || chunk.content || '',\n    source_url: chunk.source_url || metadata.source_url || null,\n    source_type: chunk.source_type || 'unknown',\n    filename: chunk.filename || metadata.filename || 'unknown',\n    chunk_index: chunk.chunk_index || 0,\n    total_chunks: chunk.total_chunks || 1,\n    chunk_size: chunk.chunk_size || 0,\n    retrieved_on: timestamp,\n    created_at: timestamp,\n    upload_timestamp: uploadTimestamp,\n    upload_order: uploadOrder,\n    user_id: metadata.userId || metadata.user_id || null,\n    chat_id: metadata.chatId || metadata.chat_id || null,\n    username: metadata.username || null,\n    classification: classification.classification || 'Unknown',\n    confidence: parseFloat(classification.confidence) || 0,\n    rationale: classification.rationale || 'No rationale provided',\n    scores: {\n      credibility: parseFloat(classification.scores?.credibility) || 0,\n      impact: parseFloat(classification.scores?.impact) || 0,\n      specificity: parseFloat(classification.scores?.specificity) || 0\n    },\n    impact_score: parseFloat(classification.scores?.impact) || 0,\n    dcwf_task_ids: classification.dcwf_tasks || [],\n    mapped_tasks: mappedTasks,\n    work_roles: classification.work_roles || [],\n    category: category,\n    tags: [category.toLowerCase().replace(/[^a-z0-9]/g, '_')],\n    evidence_strength: classification.confidence > 0.8 ? 'HIGH' : classification.confidence > 0.5 ? 'MEDIUM' : 'LOW',\n    metadata: {\n      ...metadata,\n      artifact_id: artifactId,\n      processing_timestamp: timestamp,\n      upload_timestamp: uploadTimestamp,\n      upload_order: uploadOrder,\n      chunk_metadata: chunk.metadata || {},\n      classification_metadata: classification,\n      auto_categorization: { category: category },\n      dcwf_mapping: mappedTasks,\n      enhanced_summary: summary\n    }\n  }\n};"
+      },
+      "id": "enrich-metadata",
+      "name": "Enrich Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Embedding Preparation with rich metadata\nconst enrichedData = $json;\n\n// Build enhanced content for embedding that includes metadata\nconst enhancedContent = `DOCUMENT: ${enrichedData.title}\nFILE: ${enrichedData.filename}\nTYPE: ${enrichedData.source_type}\nCLASSIFICATION: ${enrichedData.classification} (${(enrichedData.confidence * 100).toFixed(0)}% confidence)\nSUMMARY: ${enrichedData.summary}\nCATEGORY: ${enrichedData.category}\nDCWF_TASKS: ${enrichedData.dcwf_task_ids.join(', ')}\nWORK_ROLES: ${enrichedData.work_roles.join(', ')}\nRATIONALE: ${enrichedData.rationale}\nEVIDENCE_STRENGTH: ${enrichedData.evidence_strength}\nIMPACT_SCORE: ${enrichedData.impact_score}\nCREDIBILITY: ${enrichedData.scores.credibility}\nSPECIFICITY: ${enrichedData.scores.specificity}\nURL: ${enrichedData.source_url || 'Not provided'}\nUPLOADED: ${enrichedData.upload_timestamp}\n\nCONTENT:\n${enrichedData.content}`;\n\nreturn {\n  json: {\n    ...enrichedData,\n    embedding_content: enhancedContent,\n    embedding_prepared: true\n  }\n};"
+      },
+      "id": "prepare-embedding",
+      "name": "Prepare Enhanced Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer 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"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"text-embedding-ada-002\",\n  \"input\": $('Prepare Enhanced Embedding').item.json.embedding_content.substring(0, 8000)\n} }}",
+        "options": {"timeout": 20000}
+      },
+      "id": "generate-embedding",
+      "name": "Generate Enhanced Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1180, 360]
+    },
+    {
+      "parameters": {
+        "tableId": "documents",
+        "fieldsUi": {
+          "fieldValues": [
+            {"fieldId": "artifact_id", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.artifact_id }}"},
+            {"fieldId": "title", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.title }}"},
+            {"fieldId": "summary", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.summary }}"},
+            {"fieldId": "content", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.content }}"},
+            {"fieldId": "source_url", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.source_url }}"},
+            {"fieldId": "source_type", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.source_type }}"},
+            {"fieldId": "filename", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.filename }}"},
+            {"fieldId": "classification", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.classification }}"},
+            {"fieldId": "confidence", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.confidence }}"},
+            {"fieldId": "rationale", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.rationale }}"},
+            {"fieldId": "impact_score", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.impact_score }}"},
+            {"fieldId": "dcwf_task_ids", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.dcwf_task_ids }}"},
+            {"fieldId": "work_roles", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.work_roles }}"},
+            {"fieldId": "user_id", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.user_id }}"},
+            {"fieldId": "chat_id", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.chat_id }}"},
+            {"fieldId": "username", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.username }}"},
+            {"fieldId": "category", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.category }}"},
+            {"fieldId": "tags", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.tags }}"},
+            {"fieldId": "chunk_index", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.chunk_index }}"},
+            {"fieldId": "total_chunks", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.total_chunks }}"},
+            {"fieldId": "evidence_strength", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.evidence_strength }}"},
+            {"fieldId": "upload_timestamp", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.upload_timestamp }}"},
+            {"fieldId": "upload_order", "fieldValue": "={{ $('Prepare Enhanced Embedding').item.json.upload_order }}"},
+            {"fieldId": "embedding", "fieldValue": "={{ $json.data[0].embedding }}"},
+            {"fieldId": "metadata", "fieldValue": "={{ JSON.stringify($('Prepare Enhanced Embedding').item.json.metadata) }}"}
+          ]
+        }
+      },
+      "id": "store-in-supabase",
+      "name": "Store in Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1400, 360],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Success Message with full document details\nconst allItems = $items();\nconst currentIndex = $itemIndex;\nconst totalItems = allItems.length;\n\n// Only process on the last item\nif (currentIndex !== totalItems - 1) {\n  return [];\n}\n\n// Extract necessary information\nlet routeData, normalizeData, enrichedData;\n\ntry {\n  routeData = $('Detect Route Type').item.json;\n} catch (e) {\n  routeData = {};\n}\n\ntry {\n  normalizeData = $('Normalize Content').item.json;\n} catch (e) {\n  normalizeData = {};\n}\n\ntry {\n  enrichedData = $('Prepare Enhanced Embedding').first().json;\n} catch (e) {\n  enrichedData = {};\n}\n\n// Build enhanced success message with all metadata\nlet dcwfInfo = '';\nif (enrichedData.mapped_tasks && enrichedData.mapped_tasks.length > 0) {\n  const taskList = enrichedData.mapped_tasks.map(t => \n    `\\n   - ${t.task_id} (${t.nist_sp_id}): ${t.task_name}`\n  ).join('');\n  dcwfInfo = `\\n\\n🎯 **Associated DCWF Tasks:**${taskList}`;\n}\n\nlet urlInfo = '';\nif (enrichedData.source_url) {\n  urlInfo = `\\n🔗 **URL:** ${enrichedData.source_url}`;\n}\n\nconst successMessage = `📄 **Document processed successfully!**\n\n📌 **Title:** \"${enrichedData.title || routeData.fileName || 'Content'}\"\n📁 **File:** ${enrichedData.filename || 'N/A'}\n📊 **Type:** ${enrichedData.source_type || 'unknown'}\n📦 **Chunks:** ${totalItems}\n\n🤖 **AI Impact Analysis:**\n🏷️ **Classification:** ${enrichedData.classification || 'Unknown'} (${enrichedData.confidence ? (enrichedData.confidence * 100).toFixed(0) + '%' : 'N/A'} confidence)\n📝 **Summary:** ${enrichedData.summary || 'No summary available'}\n\n📊 **Evidence Scores:**\n⚡ **Impact:** ${(enrichedData.scores?.impact * 100).toFixed(0)}%\n🎯 **Specificity:** ${(enrichedData.scores?.specificity * 100).toFixed(0)}%\n✅ **Credibility:** ${(enrichedData.scores?.credibility * 100).toFixed(0)}%\n🔍 **Evidence Strength:** ${enrichedData.evidence_strength || 'MEDIUM'}\n\n🗂️ **Categorization:**\n📂 **Category:** ${enrichedData.category || 'General'}\n🏷️ **Tags:** ${enrichedData.tags ? enrichedData.tags.join(', ') : 'none'}${dcwfInfo}${urlInfo}\n\n👤 **Uploaded by:** ${routeData.username || enrichedData.username || 'Unknown'}\n⏰ **Upload time:** ${new Date(enrichedData.upload_timestamp).toLocaleString()}\n\n💬 I'll remember this document for our conversation. You can ask me:\n- \"Tell me about the last document I uploaded\"\n- \"What evidence supports the ${enrichedData.classification} classification?\"\n- Questions about any DCWF tasks mentioned`;\n\nreturn {\n  json: {\n    chatId: routeData.chatId,\n    message: successMessage,\n    documentProcessed: true,\n    totalChunks: totalItems,\n    isSystemMessage: true,\n    documentMetadata: {\n      title: enrichedData.title,\n      classification: enrichedData.classification,\n      confidence: enrichedData.confidence,\n      uploadTimestamp: enrichedData.upload_timestamp\n    }\n  }\n};"
+      },
+      "id": "aggregate-success",
+      "name": "Aggregate Success Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 360]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {"parse_mode": "Markdown"}
+      },
+      "id": "send-success-msg",
+      "name": "Send Success Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1840, 460],
+      "credentials": {"telegramApi": {"id": "AxkZ01LKYRFoDdI5", "name": "research bot"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Chat Input with Query Type Detection\nconst input = $json;\nconst userMessage = input.message || input.query || input.text || '';\n\nif (!userMessage) {\n  throw new Error('No message provided');\n}\n\n// Query type detection patterns\nconst queryTypes = {\n  lastDocument: /last\\s+(document|file|upload|doc)|recent\\s+(document|file|upload)|just\\s+(uploaded|sent)|what\\s+did\\s+i\\s+(upload|send)/i,\n  evidenceQuery: /evidence.*support.*classification|what\\s+evidence.*(?:Replace|Augment|Remain Human|New Task)|proof.*classification/i,\n  dcwfTaskQuery: /DCWF.*task|task.*[A-Z]{2,4}-\\d{3}|cybersecurity\\s+task|what.*tasks?.*relate/i,\n  classificationQuery: /how.*classified|why.*(?:Replace|Augment|Remain Human|New Task)|explain.*classification/i,\n  documentSearch: /find.*document|search.*(?:about|for)|show.*documents?.*about/i,\n  statsQuery: /how\\s+many|statistics|summary.*all|overview/i\n};\n\n// Detect query type\nlet detectedQueryType = 'general';\nlet queryContext = {};\n\nfor (const [type, pattern] of Object.entries(queryTypes)) {\n  if (pattern.test(userMessage)) {\n    detectedQueryType = type;\n    \n    // Extract specific context based on query type\n    if (type === 'evidenceQuery') {\n      // Try to extract classification mentioned\n      const classificationMatch = userMessage.match(/(?:Replace|Augment|Remain Human|New Task)/i);\n      if (classificationMatch) {\n        queryContext.targetClassification = classificationMatch[0];\n      }\n      \n      // Try to extract DCWF task mentioned\n      const taskMatch = userMessage.match(/[A-Z]{2,4}-\\d{3}/g);\n      if (taskMatch) {\n        queryContext.targetTasks = taskMatch;\n      }\n    } else if (type === 'dcwfTaskQuery') {\n      // Extract specific task IDs if mentioned\n      const taskMatch = userMessage.match(/[A-Z]{2,4}-\\d{3}/g);\n      if (taskMatch) {\n        queryContext.specificTasks = taskMatch;\n      }\n    }\n    break;\n  }\n}\n\n// Enhanced context building\nconst chatContext = {\n  userMessage: userMessage,\n  chatId: input.chatId,\n  userId: input.userId,\n  username: input.username,\n  messageId: input.messageId,\n  timestamp: input.timestamp || new Date().toISOString(),\n  \n  // Greeting detection\n  isGreeting: input.isGreeting || false,\n  \n  // Query analysis - override to 'greeting' if greeting detected\n  queryType: input.isGreeting ? 'greeting' : detectedQueryType,\n  queryContext: queryContext,\n  \n  // Memory integration flags\n  requiresMemoryRetrieval: true,\n  requiresDocumentSearch: true,\n  requiresDCWFMapping: detectedQueryType === 'dcwfTaskQuery' || detectedQueryType === 'evidenceQuery',\n  \n  // Enhanced flags\n  isLastDocumentQuery: detectedQueryType === 'lastDocument',\n  isEvidenceQuery: detectedQueryType === 'evidenceQuery',\n  isDCWFQuery: detectedQueryType === 'dcwfTaskQuery',\n  isClassificationQuery: detectedQueryType === 'classificationQuery',\n  \n  // Context enhancement\n  dcwfTaskMentioned: /[A-Z]{2,4}-\\d{3}|DCWF|task\\s+\\d+/i.test(userMessage),\n  evidenceRequest: userMessage.includes('proof') || userMessage.includes('evidence') || userMessage.includes('support'),\n  \n  // DCWF context\n  dcwfTasksAvailable: workflow.variables?.dcwfTaskList?.totalTasks || 0\n};\n\nreturn { json: chatContext };"
+      },
+      "id": "prepare-chat",
+      "name": "Prepare Enhanced Chat Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1480, 1060]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "chat_memory",
+        "limit": 20,
+        "filterType": "string",
+        "filterString": "=user_id.eq.{{ $json.userId }},chat_id.eq.{{ $json.chatId }}",
+        "sort": [{"field": "created_at", "direction": "desc"}]
+      },
+      "id": "get-chat-memory",
+      "name": "Get Chat Memory",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-1240, 1060],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Document Search based on query type\nconst chatData = $('Prepare Enhanced Chat Input').item.json;\nconst userId = chatData.userId;\nconst queryType = chatData.queryType;\nconst queryContext = chatData.queryContext;\n\n// Build search parameters based on query type\nlet searchParams = {\n  user_id: userId,\n  limit: 10\n};\n\nif (queryType === 'lastDocument') {\n  // For last document queries, we'll use the fallback search sorted by upload time\n  searchParams.sort_field = 'upload_timestamp';\n  searchParams.sort_direction = 'desc';\n  searchParams.limit = 1;\n} else if (queryType === 'evidenceQuery' && queryContext.targetClassification) {\n  // Search for documents with specific classification\n  searchParams.classification = queryContext.targetClassification;\n  searchParams.limit = 20;\n} else if (queryType === 'dcwfTaskQuery' && queryContext.specificTasks) {\n  // Search for documents mentioning specific DCWF tasks\n  searchParams.dcwf_tasks = queryContext.specificTasks;\n  searchParams.limit = 15;\n} else {\n  // General semantic search\n  searchParams.query_text = chatData.userMessage;\n  searchParams.match_threshold = 0.7;\n}\n\nreturn {\n  json: searchParams\n};"
+      },
+      "id": "prep-doc-search",
+      "name": "Prepare Document Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1480, 1260]
+    },
+    {
+      "parameters": {
+        "operation": "rpc",
+        "function": "match_documents_with_memory",
+        "parameters": {
+          "query_text": "={{ $json.query_text || $('Prepare Enhanced Chat Input').item.json.userMessage }}",
+          "user_id": "={{ $json.user_id }}",
+          "match_threshold": "={{ $json.match_threshold || 0.7 }}",
+          "match_count": "={{ $json.limit || 10 }}"
+        }
+      },
+      "id": "vector-search",
+      "name": "Vector Search Documents",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-1240, 1260],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "documents",
+        "limit": "={{ $('Prepare Document Search').item.json.limit || 10 }}",
+        "filterType": "string",
+        "filterString": "=user_id.eq.{{ $('Prepare Enhanced Chat Input').item.json.userId }}{{ $('Prepare Document Search').item.json.classification ? ',classification.eq.' + $('Prepare Document Search').item.json.classification : '' }}",
+        "sort": [{"field": "{{ $('Prepare Document Search').item.json.sort_field || 'created_at' }}", "direction": "{{ $('Prepare Document Search').item.json.sort_direction || 'desc' }}"}]
+      },
+      "id": "fallback-doc-search",
+      "name": "Enhanced Document Search",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-1020, 1260],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-chat-data",
+      "name": "Merge Chat Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [-1020, 1100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Multi-Agent Context Builder with Query-Specific Logic\nlet chatData, memoryHistory = [], documentResults = [];\n\n// Get chat input with query analysis\ntry {\n  chatData = $('Prepare Enhanced Chat Input').item.json;\n} catch (e) {\n  throw new Error('Chat input data not available');\n}\n\n// Get embedded memory\ntry {\n  memoryHistory = $('Get Chat Memory').all().map(item => item.json) || [];\n} catch (e) {\n  console.log('No embedded memory available');\n}\n\n// Get document search results\ntry {\n  // Try RPC function first\n  const vectorSearch = $('Vector Search Documents');\n  if (vectorSearch && vectorSearch.all) {\n    documentResults = vectorSearch.all().map(item => item.json) || [];\n  }\n} catch (e) {\n  // Fallback to enhanced search\n  try {\n    const fallbackSearch = $('Enhanced Document Search');\n    if (fallbackSearch && fallbackSearch.all) {\n      documentResults = fallbackSearch.all().map(item => item.json) || [];\n    }\n  } catch (e2) {\n    console.log('No document search results available');\n  }\n}\n\n// Build query-specific context\nconst dcwfTaskList = workflow.variables?.dcwfTaskList;\nconst dcwfTasks = dcwfTaskList?.tasks || [];\n\n// Format context based on query type\nlet enhancedContext = '';\nlet responseInstructions = '';\n\nif (chatData.queryType === 'lastDocument') {\n  // Focus on the most recent document\n  if (documentResults.length > 0) {\n    const lastDoc = documentResults[0];\n    enhancedContext = `\\n\\n📄 **Last Document Uploaded:**\\n`;\n    enhancedContext += `**Title:** \"${lastDoc.title}\"\\n`;\n    enhancedContext += `**File:** ${lastDoc.filename}\\n`;\n    enhancedContext += `**Classification:** ${lastDoc.classification} (${(lastDoc.confidence * 100).toFixed(0)}% confidence)\\n`;\n    enhancedContext += `**Summary:** ${lastDoc.summary}\\n`;\n    \n    if (lastDoc.dcwf_task_ids?.length > 0) {\n      enhancedContext += `\\n**Associated DCWF Tasks:**\\n`;\n      lastDoc.dcwf_task_ids.forEach(taskId => {\n        const task = dcwfTaskList?.taskMap?.[taskId];\n        if (task) {\n          enhancedContext += `- ${taskId} (${task.nist_sp_id}): ${task.task_name}\\n`;\n        }\n      });\n    }\n    \n    if (lastDoc.tags?.length > 0) {\n      enhancedContext += `\\n**Tags:** ${lastDoc.tags.join(', ')}\\n`;\n    }\n    \n    if (lastDoc.source_url) {\n      enhancedContext += `**URL:** ${lastDoc.source_url}\\n`;\n    }\n    \n    responseInstructions = 'Provide a detailed response about the last document uploaded, following the exact format shown in the context.';\n  } else {\n    enhancedContext = '\\n\\nNo documents have been uploaded yet.';\n    responseInstructions = 'Inform the user that no documents have been uploaded.';\n  }\n  \n} else if (chatData.queryType === 'evidenceQuery') {\n  // Aggregate evidence for specific classification\n  const targetClassification = chatData.queryContext.targetClassification;\n  const relevantDocs = documentResults.filter(doc => \n    !targetClassification || doc.classification === targetClassification\n  );\n  \n  if (relevantDocs.length > 0) {\n    enhancedContext = `\\n\\n🔍 **Evidence Supporting Classification${targetClassification ? ' \"' + targetClassification + '\"' : ''}:**\\n\\n`;\n    \n    relevantDocs.forEach((doc, index) => {\n      enhancedContext += `${index + 1}. **Document:** \"${doc.title}\"\\n`;\n      enhancedContext += `   - **Classification:** ${doc.classification} (${(doc.confidence * 100).toFixed(0)}% confidence)\\n`;\n      enhancedContext += `   - **Rationale:** ${doc.rationale}\\n`;\n      enhancedContext += `   - **Credibility:** ${(doc.scores?.credibility * 100).toFixed(0)}%, `;\n      enhancedContext += `**Impact:** ${(doc.scores?.impact * 100).toFixed(0)}%, `;\n      enhancedContext += `**Specificity:** ${(doc.scores?.specificity * 100).toFixed(0)}%\\n`;\n      if (doc.source_url) {\n        enhancedContext += `   - **URL:** ${doc.source_url}\\n`;\n      }\n      enhancedContext += `\\n`;\n    });\n    \n    responseInstructions = 'List all the evidence in a numbered format, showing documents with their classifications, confidence scores, rationale, and credibility metrics.';\n  } else {\n    enhancedContext = `\\n\\nNo evidence found${targetClassification ? ' for classification \"' + targetClassification + '\"' : ''}.`;\n    responseInstructions = 'Inform the user that no supporting evidence was found.';\n  }\n  \n} else if (chatData.queryType === 'dcwfTaskQuery') {\n  // Focus on DCWF task information\n  const specificTasks = chatData.queryContext.specificTasks || [];\n  let relevantTasks = [];\n  \n  if (specificTasks.length > 0) {\n    // Find specific tasks mentioned\n    relevantTasks = specificTasks.map(taskId => dcwfTaskList?.taskMap?.[taskId]).filter(Boolean);\n  } else {\n    // Find tasks mentioned in user message\n    const messageWords = chatData.userMessage.toLowerCase().split(/\\s+/);\n    dcwfTasks.forEach(task => {\n      const taskWords = `${task.task_id} ${task.nist_sp_id} ${task.task_name} ${task.task_description}`.toLowerCase();\n      for (const word of messageWords) {\n        if (word.length > 3 && taskWords.includes(word)) {\n          relevantTasks.push(task);\n          break;\n        }\n      }\n    });\n  }\n  \n  if (relevantTasks.length > 0) {\n    enhancedContext = `\\n\\n🎯 **DCWF Tasks Analysis:**\\n\\n`;\n    relevantTasks.forEach(task => {\n      enhancedContext += `**${task.task_id}** (${task.nist_sp_id}): ${task.task_name}\\n`;\n      enhancedContext += `📝 ${task.task_description}\\n\\n`;\n      \n      // Find documents related to this task\n      const relatedDocs = documentResults.filter(doc => \n        doc.dcwf_task_ids?.includes(task.task_id)\n      );\n      \n      if (relatedDocs.length > 0) {\n        enhancedContext += `**Related Documents:**\\n`;\n        relatedDocs.forEach(doc => {\n          enhancedContext += `- \"${doc.title}\" - ${doc.classification} (${(doc.confidence * 100).toFixed(0)}%)\\n`;\n        });\n        enhancedContext += `\\n`;\n      }\n    });\n    \n    responseInstructions = 'Provide detailed information about the DCWF tasks, including their descriptions and any related documents.';\n  } else {\n    enhancedContext = `\\n\\n📊 **DCWF Knowledge Base:** ${dcwfTasks.length} cybersecurity tasks available.`;\n    responseInstructions = 'Explain that DCWF tasks are available but no specific tasks were found matching the query.';\n  }\n  \n} else {\n  // General query - standard context\n  const memoryContext = memoryHistory\n    .slice(0, 10)\n    .map(msg => {\n      const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata || {};\n      const evidence = metadata.evidence ? ` [Evidence: ${JSON.stringify(metadata.evidence)}]` : '';\n      return `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}${evidence}`;\n    })\n    .join('\\n\\n');\n  \n  let documentContext = 'No relevant documents found.';\n  if (documentResults.length > 0) {\n    documentContext = documentResults.slice(0, 5)\n      .map(doc => {\n        const title = doc.title || 'Untitled';\n        const classification = doc.classification || 'Unknown';\n        const confidence = doc.confidence ? `(${(doc.confidence * 100).toFixed(0)}% confidence)` : '';\n        const content = (doc.content || '').substring(0, 400);\n        const dcwfTasks = doc.dcwf_task_ids?.length ? `\\n🎯 DCWF Tasks: ${doc.dcwf_task_ids.join(', ')}` : '';\n        const evidence = doc.evidence_strength ? `\\n🔍 Evidence Strength: ${doc.evidence_strength}` : '';\n        const url = doc.source_url ? `\\n🔗 URL: ${doc.source_url}` : '';\n        \n        return `📄 **${title}**\\n🏷️ Classification: ${classification} ${confidence}${dcwfTasks}${evidence}${url}\\n📝 Content: ${content}...\\n`;\n      })\n      .join('\\n---\\n');\n  }\n  \n  enhancedContext = `\\n\\n**Knowledge Base Context:**\\n${documentContext}\\n\\n**Recent Conversation:**\\n${memoryContext || 'No previous conversation.'}`;\n  \n  responseInstructions = 'Provide a helpful response based on the available context, citing specific documents when relevant.';\n}\n\n// Build enhanced system message\nconst systemMessage = `You are an advanced AI assistant for Project Horizon, specializing in cybersecurity workforce analysis using the DCWF (Defense Cybersecurity Workforce Framework).\n\nYou have access to ${dcwfTasks.length} DCWF cybersecurity tasks and ${documentResults.length} relevant documents.\n\n**Query Type Detected:** ${chatData.queryType}${enhancedContext}\n\n**Response Instructions:**\n${responseInstructions}\n\n**General Guidelines:**\n- For \"last document\" queries, format the response EXACTLY as shown in the examples\n- For evidence queries, list documents with their full metadata including scores\n- Include all relevant metadata: classification, confidence, rationale, URLs, DCWF tasks\n- Use markdown formatting for clarity\n- Be specific and cite exact values from the documents\n\n**User Query Context:**\n- Query Type: ${chatData.queryType}\n- DCWF Tasks Mentioned: ${chatData.dcwfTaskMentioned ? 'Yes' : 'No'}\n- Evidence Request: ${chatData.evidenceRequest ? 'Yes' : 'No'}`;\n\nreturn {\n  json: {\n    systemMessage: systemMessage,\n    userMessage: chatData.userMessage,\n    queryType: chatData.queryType,\n    queryContext: chatData.queryContext,\n    chatId: chatData.chatId,\n    userId: chatData.userId,\n    username: chatData.username,\n    messageId: chatData.messageId,\n    documentsFound: documentResults.length,\n    memoryCount: memoryHistory.length,\n    dcwfTasksFound: dcwfTasks.length,\n    hasMemoryContext: memoryHistory.length > 0,\n    hasDocumentContext: documentResults.length > 0,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "build-context",
+      "name": "Build Enhanced AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-800, 1160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer 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"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": $json.systemMessage\n    },\n    {\n      \"role\": \"user\",\n      \"content\": $json.userMessage\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500,\n  \"presence_penalty\": 0.1,\n  \"frequency_penalty\": 0.1\n} }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "call-openai",
+      "name": "Call OpenAI Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-580, 1160]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process AI Response with Evidence Tracking\nconst aiResponse = $json;\nconst contextData = $('Build Enhanced AI Context').item.json;\n\n// Extract AI message\nconst aiMessage = aiResponse.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';\n\n// Enhanced response with query-specific metadata\nconst enhancedResponse = {\n  output: aiMessage,\n  userData: {\n    chatId: contextData.chatId,\n    userId: contextData.userId,\n    username: contextData.username,\n    messageId: contextData.messageId\n  },\n  input: contextData.userMessage,\n  queryType: contextData.queryType,\n  queryContext: contextData.queryContext,\n  evidence: {\n    documentsReferenced: contextData.documentsFound,\n    memoryContextUsed: contextData.hasMemoryContext,\n    dcwfTasksAvailable: contextData.dcwfTasksFound,\n    hasEvidence: contextData.hasDocumentContext,\n    queryType: contextData.queryType,\n    documentsUsed: contextData.documentsFound\n  },\n  model: aiResponse.model || 'gpt-4o-mini',\n  responseType: contextData.queryType || 'general',\n  timestamp: new Date().toISOString(),\n  tokensUsed: aiResponse.usage?.total_tokens || 0\n};\n\nreturn { json: enhancedResponse };"
+      },
+      "id": "process-response",
+      "name": "Process AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-360, 1160]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.userData.chatId }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_to_message_id": "={{ $json.userData.messageId }}"
+        }
+      },
+      "id": "send-response",
+      "name": "Send Telegram Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [-140, 1160],
+      "credentials": {"telegramApi": {"id": "AxkZ01LKYRFoDdI5", "name": "research bot"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Enhanced User Message Embedding with Context\nconst responseData = $('Process AI Response').item.json;\nconst contextData = $('Build Enhanced AI Context').item.json;\n\n// Get recent document references if any\nlet recentDocuments = '';\nif (contextData.documentsFound > 0) {\n  recentDocuments = `\\nRECENT_DOCUMENTS: ${contextData.documentsFound} documents in context`;\n}\n\n// Build enhanced content for user message embedding\nconst enhancedUserContent = `USER_MESSAGE: ${responseData.input}\nQUERY_TYPE: ${responseData.queryType}\nTIMESTAMP: ${responseData.timestamp}\nCHAT_ID: ${responseData.userData.chatId}\nUSER: ${responseData.userData.username}${recentDocuments}\n${responseData.queryContext ? 'QUERY_CONTEXT: ' + JSON.stringify(responseData.queryContext) : ''}`;\n\nreturn {\n  json: {\n    ...responseData,\n    embedding_content: enhancedUserContent\n  }\n};"
+      },
+      "id": "prep-user-embedding",
+      "name": "Prepare User Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-360, 960]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer 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"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"text-embedding-ada-002\",\n  \"input\": $('Prepare User Embedding').item.json.embedding_content.substring(0, 8000)\n} }}",
+        "options": {"timeout": 20000}
+      },
+      "id": "embed-user-msg",
+      "name": "Embed User Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-140, 960]
+    },
+    {
+      "parameters": {
+        "tableId": "chat_memory",
+        "fieldsUi": {
+          "fieldValues": [
+            {"fieldId": "user_id", "fieldValue": "={{ $('Prepare User Embedding').item.json.userData.userId }}"},
+            {"fieldId": "chat_id", "fieldValue": "={{ $('Prepare User Embedding').item.json.userData.chatId }}"},
+            {"fieldId": "username", "fieldValue": "={{ $('Prepare User Embedding').item.json.userData.username }}"},
+            {"fieldId": "role", "fieldValue": "user"},
+            {"fieldId": "content", "fieldValue": "={{ $('Prepare User Embedding').item.json.input }}"},
+            {"fieldId": "embedding", "fieldValue": "={{ $json.data[0].embedding }}"},
+            {"fieldId": "message_type", "fieldValue": "={{ $('Prepare User Embedding').item.json.queryType }}"},
+            {"fieldId": "metadata", "fieldValue": "={{ JSON.stringify({ messageId: $('Prepare User Embedding').item.json.userData.messageId, timestamp: new Date().toISOString(), evidence: $('Prepare User Embedding').item.json.evidence, queryType: $('Prepare User Embedding').item.json.queryType, queryContext: $('Prepare User Embedding').item.json.queryContext }) }}"}
+          ]
+        }
+      },
+      "id": "store-user-msg",
+      "name": "Store User Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [80, 960],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Enhanced AI Response Embedding with Evidence\nconst responseData = $('Process AI Response').item.json;\n\n// Extract evidence references from the response\nlet evidenceRefs = '';\nif (responseData.evidence.documentsReferenced > 0) {\n  evidenceRefs = `\\nDOCUMENTS_REFERENCED: ${responseData.evidence.documentsReferenced}`;\n  evidenceRefs += `\\nEVIDENCE_PROVIDED: ${responseData.evidence.hasEvidence ? 'Yes' : 'No'}`;\n  evidenceRefs += `\\nQUERY_TYPE_HANDLED: ${responseData.queryType}`;\n}\n\n// Build enhanced content for AI response embedding\nconst enhancedAIContent = `AI_RESPONSE: ${responseData.output}\nQUERY_TYPE: ${responseData.queryType}\nMODEL: ${responseData.model}\nTOKENS_USED: ${responseData.tokensUsed}\nTIMESTAMP: ${responseData.timestamp}${evidenceRefs}\n${responseData.evidence.dcwfTasksAvailable > 0 ? 'DCWF_TASKS_AVAILABLE: ' + responseData.evidence.dcwfTasksAvailable : ''}`;\n\nreturn {\n  json: {\n    ...responseData,\n    embedding_content: enhancedAIContent\n  }\n};"
+      },
+      "id": "prep-ai-embedding",
+      "name": "Prepare AI Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-360, 1360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer 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"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"text-embedding-ada-002\",\n  \"input\": $('Prepare AI Embedding').item.json.embedding_content.substring(0, 8000)\n} }}",
+        "options": {"timeout": 20000}
+      },
+      "id": "embed-ai-response",
+      "name": "Embed AI Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [-140, 1360]
+    },
+    {
+      "parameters": {
+        "tableId": "chat_memory",
+        "fieldsUi": {
+          "fieldValues": [
+            {"fieldId": "user_id", "fieldValue": "={{ $('Prepare AI Embedding').item.json.userData.userId }}"},
+            {"fieldId": "chat_id", "fieldValue": "={{ $('Prepare AI Embedding').item.json.userData.chatId }}"},
+            {"fieldId": "username", "fieldValue": "={{ $('Prepare AI Embedding').item.json.userData.username }}"},
+            {"fieldId": "role", "fieldValue": "assistant"},
+            {"fieldId": "content", "fieldValue": "={{ $('Prepare AI Embedding').item.json.output }}"},
+            {"fieldId": "embedding", "fieldValue": "={{ $json.data[0].embedding }}"},
+            {"fieldId": "message_type", "fieldValue": "response"},
+            {"fieldId": "metadata", "fieldValue": "={{ JSON.stringify({ model: $('Prepare AI Embedding').item.json.model, evidence: $('Prepare AI Embedding').item.json.evidence, responseType: $('Prepare AI Embedding').item.json.responseType, tokensUsed: $('Prepare AI Embedding').item.json.tokensUsed, timestamp: new Date().toISOString(), queryType: $('Prepare AI Embedding').item.json.queryType }) }}"}
+          ]
+        }
+      },
+      "id": "store-ai-response",
+      "name": "Store AI Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [80, 1360],
+      "credentials": {"supabaseApi": {"id": "GTa5PjtKpwbDbZff", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Detect Route Type').item.json.chatId }}",
+        "text": "=❌ Error processing your request:\\n\\n{{ $json.error?.message || $json.message || 'An unknown error occurred' }}\\n\\nPlease try again or contact support.",
+        "additionalFields": {"parse_mode": "Markdown"}
+      },
+      "id": "send-error",
+      "name": "Send Error Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [-360, 260],
+      "credentials": {"telegramApi": {"id": "AxkZ01LKYRFoDdI5", "name": "research bot"}}
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {"main": [[{"node": "Detect Route Type", "type": "main", "index": 0}]]},
+    "External Document Webhook": {"main": [[{"node": "Detect Route Type", "type": "main", "index": 0}]]},
+    "Detect Route Type": {"main": [[{"node": "Route by Type", "type": "main", "index": 0}]]},
+    "Route by Type": {
+      "main": [
+        [{"node": "Document Source Handler", "type": "main", "index": 0}],
+        [{"node": "Document Source Handler", "type": "main", "index": 0}],
+        [{"node": "Prepare Enhanced Chat Input", "type": "main", "index": 0}],
+        [{"node": "Get YouTube Transcript", "type": "main", "index": 0}],
+        [{"node": "Get TikTok Transcript", "type": "main", "index": 0}],
+        [],
+        [],
+        [],
+        [{"node": "Load DCWF Tasks", "type": "main", "index": 0}]
+      ]
+    },
+    "Load DCWF Tasks": {"main": [[{"node": "Process DCWF Tasks", "type": "main", "index": 0}]]},
+    "Document Source Handler": {"main": [[
+      {"node": "Download Telegram File", "type": "main", "index": 0},
+      {"node": "Route Document Type", "type": "main", "index": 0}
+    ]]},
+    "Download Telegram File": {"main": [[{"node": "Route Document Type", "type": "main", "index": 0}]]},
+    "Route Document Type": {
+      "main": [
+        [{"node": "Extract PDF (Dumpling)", "type": "main", "index": 0}],
+        [{"node": "Extract DOCX (Dumpling)", "type": "main", "index": 0}],
+        [{"node": "Extract CSV", "type": "main", "index": 0}],
+        [{"node": "Extract XLSX", "type": "main", "index": 0}],
+        [{"node": "Send Error Message", "type": "main", "index": 0}]
+      ]
+    },
+    "Extract PDF (Dumpling)": {"main": [[{"node": "Normalize Content", "type": "main", "index": 0}]]},
+    "Extract DOCX (Dumpling)": {"main": [[{"node": "Normalize Content", "type": "main", "index": 0}]]},
+    "Extract CSV": {"main": [[{"node": "Process Spreadsheet", "type": "main", "index": 0}]]},
+    "Extract XLSX": {"main": [[{"node": "Process Spreadsheet", "type": "main", "index": 0}]]},
+    "Process Spreadsheet": {"main": [[{"node": "Normalize Content", "type": "main", "index": 0}]]},
+    "Get YouTube Transcript": {"main": [[{"node": "Normalize Content", "type": "main", "index": 0}]]},
+    "Get TikTok Transcript": {"main": [[{"node": "Normalize Content", "type": "main", "index": 0}]]},
+    "Normalize Content": {"main": [[{"node": "Chunk Text", "type": "main", "index": 0}]]},
+    "Chunk Text": {"main": [[{"node": "AI Classification with DCWF", "type": "main", "index": 0}]]},
+    "AI Classification with DCWF": {"main": [[{"node": "Enrich Metadata", "type": "main", "index": 0}]]},
+    "Enrich Metadata": {"main": [[{"node": "Prepare Enhanced Embedding", "type": "main", "index": 0}]]},
+    "Prepare Enhanced Embedding": {"main": [[{"node": "Generate Enhanced Embedding", "type": "main", "index": 0}]]},
+    "Generate Enhanced Embedding": {"main": [[{"node": "Store in Supabase", "type": "main", "index": 0}]]},
+    "Store in Supabase": {"main": [[{"node": "Aggregate Success Message", "type": "main", "index": 0}]]},
+    "Aggregate Success Message": {"main": [[{"node": "Send Success Message", "type": "main", "index": 0}]]},
+    "Prepare Enhanced Chat Input": {"main": [[
+      {"node": "Get Chat Memory", "type": "main", "index": 0},
+      {"node": "Prepare Document Search", "type": "main", "index": 0}
+    ]]},
+    "Get Chat Memory": {"main": [[{"node": "Merge Chat Data", "type": "main", "index": 0}]]},
+    "Prepare Document Search": {"main": [[{"node": "Vector Search Documents", "type": "main", "index": 0}]]},
+    "Vector Search Documents": {"main": [[{"node": "Merge Chat Data", "type": "main", "index": 1}]]},
+    "Enhanced Document Search": {"main": [[{"node": "Merge Chat Data", "type": "main", "index": 1}]]},
+    "Merge Chat Data": {"main": [[{"node": "Build Enhanced AI Context", "type": "main", "index": 0}]]},
+    "Build Enhanced AI Context": {"main": [[{"node": "Call OpenAI Chat", "type": "main", "index": 0}]]},
+    "Call OpenAI Chat": {"main": [[{"node": "Process AI Response", "type": "main", "index": 0}]]},
+    "Process AI Response": {"main": [[
+      {"node": "Send Telegram Response", "type": "main", "index": 0},
+      {"node": "Prepare User Embedding", "type": "main", "index": 0},
+      {"node": "Prepare AI Embedding", "type": "main", "index": 0}
+    ]]},
+    "Prepare User Embedding": {"main": [[{"node": "Embed User Message", "type": "main", "index": 0}]]},
+    "Embed User Message": {"main": [[{"node": "Store User Message", "type": "main", "index": 0}]]},
+    "Prepare AI Embedding": {"main": [[{"node": "Embed AI Response", "type": "main", "index": 0}]]},
+    "Embed AI Response": {"main": [[{"node": "Store AI Response", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1"},
+  "versionId": "enhanced-retrieval-v2",
+  "meta": {
+    "instanceId": "ai-horizon-enhanced-retrieval",
+    "description": "Enhanced RAG workflow with advanced retrieval, query detection, and rich metadata embeddings"
+  },
+  "active": false,
+  "tags": []
+} 
